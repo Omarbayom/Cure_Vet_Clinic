@@ -4,60 +4,73 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QMessageBox, QGridLayout, QScrollArea
 )
 from PyQt5.QtGui import QFont, QPalette, QColor, QLinearGradient, QBrush
-from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtCore import Qt, QEvent, QByteArray
 
 class Dashboard(QWidget):
-    def __init__(self, return_to_welcome_callback=None):
+    def __init__(
+        self,
+        initial_geometry: QByteArray = None,
+        initial_fullscreen: bool = True,
+        return_to_welcome_callback=None
+    ):
         super().__init__()
         self.setWindowTitle("𝐂ure Vet Clinic - Dashboard")
-        self.is_fullscreen = True
         self.return_to_welcome = return_to_welcome_callback
-        self.showFullScreen()
+        self.is_fullscreen = initial_fullscreen
 
+        # 1) Restore geometry if provided
+        if initial_geometry:
+            self.restoreGeometry(initial_geometry)
+
+        # 2) Show full-screen or normal
+        if initial_fullscreen:
+            self.showFullScreen()
+        else:
+            self.showNormal()
+
+        # 3) Build UI
         self.setup_background()
         self.init_ui()
 
     def setup_background(self):
-        palette = QPalette()
-        gradient = QLinearGradient(0, 0, 0, self.height())
-        gradient.setColorAt(0.0, QColor("#009999"))
-        gradient.setColorAt(1.0, QColor("#006666"))
-        palette.setBrush(QPalette.Window, QBrush(gradient))
+        pal = QPalette()
+        grad = QLinearGradient(0, 0, 0, self.height())
+        grad.setColorAt(0, QColor("#009999"))
+        grad.setColorAt(1, QColor("#006666"))
+        pal.setBrush(QPalette.Window, QBrush(grad))
         self.setAutoFillBackground(True)
-        self.setPalette(palette)
+        self.setPalette(pal)
 
     def init_ui(self):
-        # 1) Create the main layout
+        # Main vertical layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setAlignment(Qt.AlignTop)
         self.main_layout.setContentsMargins(40, 30, 40, 30)
         self.main_layout.setSpacing(20)
 
-        # 2) Title
+        # Title
         title = QLabel("Welcome to 𝐂ure Vet Clinic")
         title.setFont(QFont("Segoe UI", 26, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("color: white;")
         self.main_layout.addWidget(title)
 
-        # 3) Scrollable grid area
+        # Scrollable grid container
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("border: none;")
-
         self.grid_widget = QWidget()
-        self.grid_layout = QGridLayout()           # ← grid_layout is created here
+        self.grid_layout = QGridLayout()
         self.grid_layout.setSpacing(20)
         self.grid_widget.setLayout(self.grid_layout)
         scroll.setWidget(self.grid_widget)
-
         self.main_layout.addWidget(scroll)
 
-        # 4) Return button
-        return_btn = QPushButton("🔙 Return to Welcome Page")
-        return_btn.setFont(QFont("Segoe UI", 14, QFont.Bold))
-        return_btn.setCursor(Qt.PointingHandCursor)
-        return_btn.setStyleSheet("""
+        # Return button
+        back_btn = QPushButton("🔙 Return to Welcome Page")
+        back_btn.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
                 color: #b40000;
@@ -69,15 +82,14 @@ class Dashboard(QWidget):
                 background-color: #ffe6e6;
             }
         """)
-        return_btn.clicked.connect(self.back_to_welcome)
-        self.main_layout.addWidget(return_btn)
+        back_btn.clicked.connect(self.back_to_welcome)
+        self.main_layout.addWidget(back_btn)
 
-        # 5) Set it all on the widget
         self.setLayout(self.main_layout)
 
-        # 6) Create and store buttons
+        # Prepare feature buttons
         self.buttons = []
-        self.button_texts = [
+        texts = [
             "📅 Book an Appointment",
             "📋 Show Patient History",
             "✏️ Update Patient Data",
@@ -88,11 +100,11 @@ class Dashboard(QWidget):
             "👨‍⚕️ Staff Management",
             "📊 Reports and Analytics"
         ]
-        for text in self.button_texts:
-            btn = QPushButton(text)
-            btn.setFont(QFont("Segoe UI", 14, QFont.Bold))
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet("""
+        for t in texts:
+            b = QPushButton(t)
+            b.setFont(QFont("Segoe UI", 14, QFont.Bold))
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet("""
                 QPushButton {
                     background-color: white;
                     color: #007f7f;
@@ -104,61 +116,53 @@ class Dashboard(QWidget):
                     background-color: #e6f2f2;
                 }
             """)
-            btn.clicked.connect(lambda _, t=text: self.not_implemented(t))
-            self.buttons.append(btn)
+            b.clicked.connect(lambda _, x=t: self.not_implemented(x))
+            self.buttons.append(b)
 
-        # 7) Lay them out
+        # Lay them out once
         self.update_grid_layout()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # only update after grid_layout exists
         if hasattr(self, 'grid_layout'):
             self.update_grid_layout()
 
-
     def update_grid_layout(self):
-        # clear existing
+        # Clear old widgets
         for i in reversed(range(self.grid_layout.count())):
-            widget = self.grid_layout.itemAt(i).widget()
-            widget.setParent(None)
+            w = self.grid_layout.itemAt(i).widget()
+            w.setParent(None)
 
-        # decide columns
+        # Compute columns by width
         w = self.width()
-        if w >= 1200:
-            cols = 3
-        elif w >= 800:
-            cols = 2
-        else:
-            cols = 1
+        cols = 3 if w >= 1200 else 2 if w >= 800 else 1
 
-        # re-add
+        # Re-add buttons
         for idx, btn in enumerate(self.buttons):
             r, c = divmod(idx, cols)
             self.grid_layout.addWidget(btn, r, c)
 
-    def not_implemented(self, feature_name):
-        QMessageBox.information(self, "Coming Soon",
-                                f"🔧 '{feature_name}' will be added soon.")
+    def not_implemented(self, name):
+        QMessageBox.information(self, "Coming Soon", f"🔧 '{name}' will be added soon.")
 
     def back_to_welcome(self):
+        geom = self.saveGeometry()
+        fs   = self.isFullScreen()
         if self.return_to_welcome:
-            self.return_to_welcome()
-            self.close()
+            self.return_to_welcome(geom, fs)
+        self.close()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            self.toggle_window_mode()
-
-    def toggle_window_mode(self):
-        if self.isFullScreen():
-            self.showNormal()
-            self.resize(1000, 600)
-            self.move(200, 100)
-            self.is_fullscreen = False
-        else:
-            self.showFullScreen()
-            self.is_fullscreen = True
+            # Toggle windowed/fullscreen
+            if self.isFullScreen():
+                self.showNormal()
+                self.resize(1000, 600)
+                self.move(200, 100)
+                self.is_fullscreen = False
+            else:
+                self.showFullScreen()
+                self.is_fullscreen = True
 
     def changeEvent(self, event):
         if event.type() == QEvent.WindowStateChange:
@@ -171,6 +175,7 @@ class Dashboard(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = Dashboard()
-    win.show()
+    # Example: no previous geometry → full-screen
+    dash = Dashboard()
+    dash.show()
     sys.exit(app.exec_())

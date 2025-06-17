@@ -118,19 +118,41 @@ class WelcomeWindow(QWidget):
         """
 
     def launch_main_app(self):
-        self.hide()
-        def back_fullscreen():
-                self.showFullScreen()
-                self.raise_()
-                self.activateWindow()
+        # 1. Grab current geometry & fullscreen state
+        geom = self.saveGeometry()
+        fs   = self.isFullScreen()
 
-        # Pass that to Dashboard
-        self.dashboard = Dashboard(return_to_welcome_callback=back_fullscreen)
-        self.dashboard.show()
+        self.hide()
+
+        # 2. Define a callback that Dashboard will call on “Return”
+        def back(geometry, fullscreen):
+            # restore geometry & state
+            self.restoreGeometry(geometry)
+            if fullscreen:
+                self.showFullScreen()
+            else:
+                self.showNormal()
+            self.is_fullscreen = fullscreen
+
+        # 3. Pass both geom & fs plus the callback
+        self.dashboard = Dashboard(
+            initial_geometry=geom,
+            initial_fullscreen=fs,
+            return_to_welcome_callback=back
+        )
+        self.dashboard.show()  # .show() will use its initial_geometry
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape and self.is_fullscreen:
-            self.toggle_window_mode()
+        if event.key() == Qt.Key_Escape:
+            # Toggle windowed/fullscreen
+            if self.isFullScreen():
+                self.showNormal()
+                self.resize(1000, 600)
+                self.move(200, 100)
+                self.is_fullscreen = False
+            else:
+                self.showFullScreen()
+                self.is_fullscreen = True
 
     def changeEvent(self, event):
         if event.type() == QEvent.WindowStateChange:
