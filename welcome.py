@@ -21,34 +21,6 @@ class WelcomeWindow(QWidget):
         main_layout.setContentsMargins(50, 30, 50, 30)
         main_layout.setSpacing(30)
 
-        # Top-right control bar
-        top_bar = QHBoxLayout()
-        top_bar.setAlignment(Qt.AlignRight)
-        top_bar.setSpacing(10)
-
-        minimize_btn = QPushButton("➖")
-        minimize_btn.setFixedSize(40, 30)
-        minimize_btn.setToolTip("Minimize")
-        minimize_btn.setStyleSheet(self.button_style())
-        minimize_btn.clicked.connect(self.showMinimized)
-
-        toggle_btn = QPushButton("▭")
-        toggle_btn.setFixedSize(40, 30)
-        toggle_btn.setToolTip("Toggle Window Size")
-        toggle_btn.setStyleSheet(self.button_style())
-        toggle_btn.clicked.connect(self.toggle_window_mode)
-
-        close_btn = QPushButton("✖")
-        close_btn.setFixedSize(40, 30)
-        close_btn.setToolTip("Close")
-        close_btn.setStyleSheet(self.button_style("red"))
-        close_btn.clicked.connect(self.close)
-
-        top_bar.addWidget(minimize_btn)
-        top_bar.addWidget(toggle_btn)
-        top_bar.addWidget(close_btn)
-        main_layout.addLayout(top_bar)
-
         # Logo with shadow
         logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
@@ -93,12 +65,14 @@ class WelcomeWindow(QWidget):
         # Center layout for logo and rest
         center_layout = QVBoxLayout()
         center_layout.setAlignment(Qt.AlignCenter)
-        center_layout.addSpacing(40)
+        center_layout.addSpacing(150)  # pushed logo down
         center_layout.addWidget(logo_label)
-        center_layout.addSpacing(50)
+        center_layout.addSpacing(60)  # more space between logo and datetime
         center_layout.addWidget(self.datetime_label)
-        center_layout.addSpacing(40)
+        center_layout.addSpacing(60)  # pushed start button further down
         center_layout.addWidget(start_button)
+        center_layout.addSpacing(30)  # optional bottom spacing
+
 
         main_layout.addLayout(center_layout)
         self.setLayout(main_layout)
@@ -149,6 +123,16 @@ class WelcomeWindow(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape and self.is_fullscreen:
             self.toggle_window_mode()
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.WindowStateChange:
+            if self.windowState() == Qt.WindowMaximized:
+                self.showFullScreen()
+                self.is_fullscreen = True
+            elif self.windowState() == Qt.WindowNoState:
+                self.showNormal()
+                self.is_fullscreen = False
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
