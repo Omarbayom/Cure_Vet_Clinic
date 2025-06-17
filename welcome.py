@@ -1,5 +1,6 @@
 import sys
 import os
+from dashboard import Dashboard
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGraphicsDropShadowEffect
@@ -117,8 +118,15 @@ class WelcomeWindow(QWidget):
         """
 
     def launch_main_app(self):
-        print("Launching main app...")  # Replace with actual transition
-        self.close()
+        self.hide()
+        def back_fullscreen():
+                self.showFullScreen()
+                self.raise_()
+                self.activateWindow()
+
+        # Pass that to Dashboard
+        self.dashboard = Dashboard(return_to_welcome_callback=back_fullscreen)
+        self.dashboard.show()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape and self.is_fullscreen:
