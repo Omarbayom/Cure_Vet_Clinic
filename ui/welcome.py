@@ -9,8 +9,6 @@ class WelcomeWidget(QWidget):
     def __init__(self, on_start):
         super().__init__()
         self.on_start = on_start
-        # no longer call showFullScreen here—
-        # the QMainWindow is already full-screen.
         self.build_ui()
 
     def paintEvent(self, event):
@@ -71,3 +69,8 @@ class WelcomeWidget(QWidget):
     def update_time(self):
         now = QDateTime.currentDateTime()
         self.dt.setText(now.toString("dddd, MMMM d, yyyy   ⏰  hh:mm:ss AP"))
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self.on_start()
+        else:
+            super().keyPressEvent(event)
