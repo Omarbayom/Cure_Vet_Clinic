@@ -4,6 +4,17 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QTimer, QDateTime
+import sys, os
+
+def resource_path(relative_path):
+    """
+    Get the absolute path to a resource, works for dev and for PyInstaller bundle.
+    """
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+    else:
+        base = os.getcwd()
+    return os.path.join(base, relative_path)
 
 class WelcomeWidget(QWidget):
     def __init__(self, on_start):
@@ -27,7 +38,7 @@ class WelcomeWidget(QWidget):
         layout.setSpacing(60)
 
         logo = QLabel()
-        pix = QPixmap("assets/logo.png").scaled(300, 300,
+        pix = QPixmap(resource_path("assets/logo.png")).scaled(300, 300,
             Qt.KeepAspectRatio, Qt.SmoothTransformation)
         logo.setPixmap(pix)
         logo.setAlignment(Qt.AlignCenter)

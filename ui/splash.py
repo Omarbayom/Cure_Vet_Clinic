@@ -1,10 +1,20 @@
-import sys
+import sys, os
 from PyQt5.QtWidgets import QWidget, QLabel, QProgressBar, QVBoxLayout, QApplication
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QPixmap
 
+def resource_path(relative_path):
+    """
+    Get the absolute path to a resource, works for dev and for PyInstaller bundle.
+    """
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+    else:
+        base = os.getcwd()
+    return os.path.join(base, relative_path)
+
 class SplashScreen(QWidget):
-    # Signal emitted when loading completes
+    # Emitted when loading completes
     finished = pyqtSignal()
 
     def __init__(self, logo_path="assets/logo.png", duration_ms=2000):
@@ -13,17 +23,17 @@ class SplashScreen(QWidget):
         self.progress = 0
         self._build_ui(logo_path)
 
-        # Make window frameless, always on top, and transparent
+        # Frameless, always on top, translucent background
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         # Center on screen
         self.resize(400, 400)
-        screen_center = QApplication.primaryScreen().geometry().center()
-        self.move(screen_center.x() - self.width() // 2,
-                  screen_center.y() - self.height() // 2)
+        center = QApplication.primaryScreen().geometry().center()
+        self.move(center.x() - self.width()//2,
+                  center.y() - self.height()//2)
 
-        # Timer to advance the progress bar in 100 steps
+        # Timer to advance the bar in 100 steps
         interval = max(1, duration_ms // 100)
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update_progress)
@@ -35,16 +45,16 @@ class SplashScreen(QWidget):
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(20)
 
-        # Logo in the middle
+        # Logo
         logo = QLabel(self)
-        pix = QPixmap(logo_path).scaled(
+        pix = QPixmap(resource_path(logo_path)).scaled(
             200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
         logo.setPixmap(pix)
         logo.setAlignment(Qt.AlignCenter)
         layout.addWidget(logo)
 
-        # Thin progress bar underneath
+        # Progress bar
         self._bar = QProgressBar(self)
         self._bar.setRange(0, 100)
         self._bar.setValue(0)
@@ -74,3 +84,12 @@ class SplashScreen(QWidget):
     def keyPressEvent(self, event):
         # Ignore all key presses during the splash
         event.ignore()
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    splash = SplashScreen(duration_ms=1500)
+    # Close the app once the splash finishes
+    splash.finished.connect(app.quit)
+    splash.show()
+    sys.exit(app.exec_())
