@@ -7,9 +7,10 @@ from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QTimer, QEvent
 
 class DashboardWidget(QWidget):
-    def __init__(self, on_back):
+    def __init__(self, on_back, on_add_patient):
         super().__init__()
         self.on_back = on_back
+        self.on_add_patient = on_add_patient
         self.buttons = []
         self._build_ui()
 
@@ -109,11 +110,14 @@ class DashboardWidget(QWidget):
                     background-color: #e6f2f2;
                 }
             """)
-            btn.clicked.connect(
-                lambda _, name=t: QMessageBox.information(
-                    self, "Coming Soon", f"🔧 '{name}' will be implemented soon."
+            if t == "➕ Add New Patient":
+                btn.clicked.connect(self.on_add_patient)
+            else:
+                btn.clicked.connect(
+                    lambda _, name=t: QMessageBox.information(
+                        self, "Coming Soon", f"🔧 '{name}' will be implemented soon."
+                    )
                 )
-            )
             self.buttons.append(btn)
 
         # Initial grid layout
