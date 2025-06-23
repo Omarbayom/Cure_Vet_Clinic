@@ -187,26 +187,34 @@ class AddPatientPage(QWidget):
         ch.addStretch(); ch.addWidget(panel); ch.addStretch()
         main.addLayout(ch)
 
-        # ── Save / Cancel Buttons ──
-        bh = QHBoxLayout(); bh.setContentsMargins(20,10,20,20); bh.addStretch()
-        save = QPushButton("💾 Save"); save.setFont(QFont("Segoe UI",18))
-        save.setCursor(Qt.PointingHandCursor); save.setFixedSize(140,45)
+        # ── Save / Cancel Buttons (inside panel) ──
+        btn_h = QHBoxLayout()
+        btn_h.setContentsMargins(0, 10, 0, 0)
+
+        save = QPushButton("💾 Save")
+        save.setFont(QFont("Segoe UI", 18))
+        save.setCursor(Qt.PointingHandCursor)
+        save.setFixedSize(140, 45)
         save.setStyleSheet(
             "QPushButton{background:#009999;color:white;border-radius:4px;}"
             "QPushButton:hover{background:#008080}"
         )
         save.clicked.connect(self._save)
 
-        cancel = QPushButton("✖ Cancel"); cancel.setFont(QFont("Segoe UI",18))
-        cancel.setCursor(Qt.PointingHandCursor); cancel.setFixedSize(140,45)
+        cancel = QPushButton("✖ Cancel")
+        cancel.setFont(QFont("Segoe UI", 18))
+        cancel.setCursor(Qt.PointingHandCursor)
+        cancel.setFixedSize(140, 45)
         cancel.setStyleSheet(
             "QPushButton{background:#b40000;color:white;border-radius:4px;}"
             "QPushButton:hover{background:#8a0000}"
         )
         cancel.clicked.connect(self._handle_cancel)
 
-        bh.addWidget(save); bh.addWidget(cancel)
-        main.addLayout(bh)
+        btn_h.addStretch()
+        btn_h.addWidget(save)
+        btn_h.addWidget(cancel)
+        form.addRow(btn_h)
 
     def _lookup_owner(self):
         phone = self.phone_input.text().strip()

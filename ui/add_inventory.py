@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QDateEdit, QSpinBox, QDoubleSpinBox,
     QPushButton, QFormLayout, QVBoxLayout, QHBoxLayout, QMessageBox,
     QFrame, QSizePolicy, QToolButton, QGraphicsDropShadowEffect,
-    QApplication
+    QApplication, QCalendarWidget
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
@@ -30,51 +30,44 @@ class AddInventoryPage(QWidget):
     def _build_ui(self):
         self.setStyleSheet("background-color: #f2f2f2;")
         main = QVBoxLayout(self)
-        main.setContentsMargins(0, 0, 0, 0)
+        main.setContentsMargins(0,0,0,0)
         main.setSpacing(0)
 
         # ── Back Arrow ──
-        top = QHBoxLayout()
-        top.setContentsMargins(10, 10, 10, 5)
+        top = QHBoxLayout(); top.setContentsMargins(10,10,10,5)
         back = QToolButton()
-        back.setText("←")
-        back.setFont(QFont("Segoe UI", 20))
+        back.setText("←"); back.setFont(QFont("Segoe UI",20))
         back.setCursor(Qt.PointingHandCursor)
         back.setStyleSheet(
-            "QToolButton { color:white; background:transparent; border:none; }"
-            "QToolButton:hover { color:#e0e0e0; }"
+            "QToolButton{color:white;background:transparent;border:none;}"
+            "QToolButton:hover{color:#e0e0e0}"
         )
         back.clicked.connect(self.on_back)
         top.addWidget(back, Qt.AlignLeft)
         main.addLayout(top)
 
         # ── Header ──
-        hdr = QHBoxLayout()
-        hdr.addStretch()
-        plus = QLabel("➕"); plus.setFont(QFont("Segoe UI", 26))
+        hdr = QHBoxLayout(); hdr.addStretch()
+        plus = QLabel("➕"); plus.setFont(QFont("Segoe UI",26))
         plus.setStyleSheet("color:white; background:transparent;")
         title = QLabel("Add / Restock Inventory")
-        title.setFont(QFont("Segoe UI", 26, QFont.Bold))
+        title.setFont(QFont("Segoe UI",26,QFont.Bold))
         title.setStyleSheet("color:white; background:transparent;")
-        hdr.addWidget(plus)
-        hdr.addWidget(title)
-        hdr.addStretch()
+        hdr.addWidget(plus); hdr.addWidget(title); hdr.addStretch()
         main.addLayout(hdr)
 
         # ── Form Panel ──
         panel = QFrame()
         panel.setStyleSheet("QFrame{background:#e0e0e0;border-radius:8px;}")
         shadow = QGraphicsDropShadowEffect(panel)
-        shadow.setBlurRadius(15); shadow.setOffset(0, 3); shadow.setColor(QColor(0,0,0,60))
+        shadow.setBlurRadius(15); shadow.setOffset(0,3); shadow.setColor(QColor(0,0,0,60))
         panel.setGraphicsEffect(shadow)
         panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
-        # container layout for form + buttons
         content = QVBoxLayout(panel)
-        content.setContentsMargins(20, 20, 20, 20)
+        content.setContentsMargins(20,20,20,20)
         content.setSpacing(15)
 
-        # form layout
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignRight)
         form.setFormAlignment(Qt.AlignLeft|Qt.AlignTop)
@@ -82,7 +75,7 @@ class AddInventoryPage(QWidget):
         form.setVerticalSpacing(18)
 
         def mk(widget):
-            widget.setFont(QFont("Segoe UI", 18))
+            widget.setFont(QFont("Segoe UI",18))
             widget.setStyleSheet("""
                 background: white;
                 border: 1px solid #ccc;
@@ -91,14 +84,11 @@ class AddInventoryPage(QWidget):
                 min-height: 40px;
             """)
             widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            if isinstance(widget, QDateEdit):
-                widget.setCalendarPopup(True)
-                widget.setDisplayFormat("dd MMMM yyyy")
             return widget
 
         def lbl(text):
             l = QLabel(text)
-            l.setFont(QFont("Segoe UI", 18))
+            l.setFont(QFont("Segoe UI",18))
             l.setStyleSheet("color:#333;")
             return l
 
@@ -106,13 +96,45 @@ class AddInventoryPage(QWidget):
         self.name_input       = mk(QLineEdit());      self.name_input.setPlaceholderText("Item name")
         self.category_input   = mk(QLineEdit());      self.category_input.setPlaceholderText("Category")
         self.unit_input       = mk(QLineEdit());      self.unit_input.setPlaceholderText("Unit (e.g. tablet)")
-        self.qty_input        = mk(QSpinBox());       self.qty_input.setRange(1, 100000)
-        self.reorder_input    = mk(QSpinBox());       self.reorder_input.setRange(0, 100000)
+        self.qty_input        = mk(QSpinBox());       self.qty_input.setRange(1,100000)
+        self.reorder_input    = mk(QSpinBox());       self.reorder_input.setRange(0,100000)
         self.exp_input        = mk(QDateEdit())
-        self.default_price_in = mk(QDoubleSpinBox()); self.default_price_in.setRange(0, 1e6)
+        self.default_price_in = mk(QDoubleSpinBox()); self.default_price_in.setRange(0,1e6)
         self.pur_date_input   = mk(QDateEdit())
-        self.pur_price_input  = mk(QDoubleSpinBox()); self.pur_price_input.setRange(0, 1e6)
+        self.pur_price_input  = mk(QDoubleSpinBox()); self.pur_price_input.setRange(0,1e6)
 
+        # configure both date edits just like in AddPatientPage
+        for date_widget in (self.exp_input, self.pur_date_input):
+            date_widget.setCalendarPopup(True)
+            date_widget.setDisplayFormat("dd MMMM yyyy")
+            cal = QCalendarWidget(self)
+            cal.setNavigationBarVisible(True)
+            # dark text/nav on white background
+            cal.setStyleSheet("""
+                /* navigation bar bg */
+                QCalendarWidget QWidget#qt_calendar_navigationbar {
+                    background: white;
+                }
+                /* prev/next arrows & month/year text */
+                QCalendarWidget QToolButton {
+                    color: black;
+                    background: transparent;
+                    border: none;
+                }
+                /* month/year dropdown */
+                QCalendarWidget QComboBox {
+                    color: black;
+                    background: white;
+                }
+            """)
+            date_widget.setCalendarWidget(cal)
+            # sync today's date immediately
+            today = QDate.currentDate()
+            date_widget.setDate(today)
+            cal.setSelectedDate(today)
+            cal.setCurrentPage(today.year(), today.month())
+
+        # add to form
         for label_text, widget in [
             ("Name*:",             self.name_input),
             ("Category*:",         self.category_input),
@@ -128,42 +150,27 @@ class AddInventoryPage(QWidget):
 
         content.addLayout(form)
 
-        # ── Save / Cancel Buttons ──
-        btn_h = QHBoxLayout()
-        btn_h.setContentsMargins(0, 10, 0, 0)
-
-        save = QPushButton("💾 Save")
-        save.setFont(QFont("Segoe UI", 18))
-        save.setCursor(Qt.PointingHandCursor)
-        save.setFixedSize(140, 45)
+        # ── Save / Cancel ──
+        btn_h = QHBoxLayout(); btn_h.setContentsMargins(0,10,0,0)
+        save = QPushButton("💾 Save"); save.setFont(QFont("Segoe UI",18))
+        save.setCursor(Qt.PointingHandCursor); save.setFixedSize(140,45)
         save.setStyleSheet(
             "QPushButton{background:#009999;color:white;border-radius:4px;}"
             "QPushButton:hover{background:#008080}"
         )
         save.clicked.connect(self._save)
-
-        cancel = QPushButton("✖ Cancel")
-        cancel.setFont(QFont("Segoe UI", 18))
-        cancel.setCursor(Qt.PointingHandCursor)
-        cancel.setFixedSize(140, 45)
+        cancel = QPushButton("✖ Cancel"); cancel.setFont(QFont("Segoe UI",18))
+        cancel.setCursor(Qt.PointingHandCursor); cancel.setFixedSize(140,45)
         cancel.setStyleSheet(
             "QPushButton{background:#b40000;color:white;border-radius:4px;}"
             "QPushButton:hover{background:#8a0000}"
         )
         cancel.clicked.connect(self.on_back)
-
-        btn_h.addStretch()
-        btn_h.addWidget(save)
-        btn_h.addWidget(cancel)
+        btn_h.addStretch(); btn_h.addWidget(save); btn_h.addWidget(cancel)
         content.addLayout(btn_h)
 
         panel.setLayout(content)
         main.addWidget(panel, alignment=Qt.AlignCenter)
-
-        # set default dates
-        today = QDate.currentDate()
-        self.exp_input.setDate(today)
-        self.pur_date_input.setDate(today)
 
     def _save(self):
         name    = self.name_input.text().strip()
@@ -191,6 +198,7 @@ class AddInventoryPage(QWidget):
             'purchase_date':      pdate,
             'purchase_price':     cost
         }
+
         try:
             add_or_restock_inventory(batch)
         except Exception as e:
@@ -204,6 +212,6 @@ class AddInventoryPage(QWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = AddInventoryPage(on_back=app.quit)
-    w.resize(980, 700)
+    w.resize(980,700)
     w.show()
     sys.exit(app.exec_())
