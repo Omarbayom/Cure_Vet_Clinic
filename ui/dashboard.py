@@ -14,16 +14,6 @@ class DashboardWidget(QWidget):
         self.buttons = []
         self._build_ui()
 
-        # Idle timer: return after 60 s of no interaction
-        self.idle_timer = QTimer(self)
-        self.idle_timer.setInterval(60_000)
-        self.idle_timer.setSingleShot(True)
-        self.idle_timer.timeout.connect(self.on_back)
-        self.idle_timer.start()
-
-        # Catch mouse/key events to reset idle timer
-        self.installEventFilter(self)
-
     def paintEvent(self, event):
         # Teal gradient background
         painter = QPainter(self)
@@ -142,16 +132,6 @@ class DashboardWidget(QWidget):
         for idx, btn in enumerate(self.buttons):
             row, col = divmod(idx, cols)
             self.grid_layout.addWidget(btn, row, col)
-
-    def eventFilter(self, watched, event):
-        # Reset idle timer on input
-        if event.type() in (
-            QEvent.MouseMove,
-            QEvent.MouseButtonPress,
-            QEvent.KeyPress
-        ):
-            self.idle_timer.start()
-        return super().eventFilter(watched, event)
 
 if __name__ == "__main__":
     from PyQt5.QtWidgets import QApplication

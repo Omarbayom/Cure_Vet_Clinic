@@ -4,16 +4,14 @@ from PyQt5.QtWidgets import (
     QComboBox, QSpinBox, QPushButton, QFormLayout,
     QVBoxLayout, QHBoxLayout, QMessageBox, QToolButton,
     QSizePolicy, QFrame, QGraphicsDropShadowEffect,
-    QApplication
+    QApplication, QCalendarWidget
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
 
 from db_manager import (
     get_all_species, add_species,
-    get_colors_by_species, add_color,
-    get_owner_by_phone, add_owner,
-    get_pets_by_owner, add_pet,
+    get_owner_by_phone, add_owner, add_pet,
     find_pet, update_pet
 )
 
@@ -24,7 +22,7 @@ class AddPatientPage(QWidget):
         self._build_ui()
 
     def paintEvent(self, event):
-        # Draw top gradient
+        # Top gradient
         painter = QPainter(self)
         grad = QLinearGradient(0, 0, 0, int(self.height() * 0.12))
         grad.setColorAt(0, QColor("#009999"))
@@ -38,70 +36,80 @@ class AddPatientPage(QWidget):
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
 
-        # Back button
-        top = QHBoxLayout()
-        top.setContentsMargins(10, 10, 10, 5)
+        # ── Back Arrow ──
+        top = QHBoxLayout(); top.setContentsMargins(10, 10, 10, 5)
         back = QToolButton()
-        back.setText("←")
-        back.setFont(QFont("Segoe UI", 20))
+        back.setText("←"); back.setFont(QFont("Segoe UI", 20))
         back.setCursor(Qt.PointingHandCursor)
         back.setStyleSheet(
-            "QToolButton { color: white; background: transparent; border: none; }"
-            "QToolButton:hover { color: #e0e0e0; }"
+            "QToolButton { color:white; background:transparent; border:none; }"
+            "QToolButton:hover { color:#e0e0e0; }"
         )
         back.clicked.connect(self.on_back)
-        top.addWidget(back, Qt.AlignLeft)
-        top.addStretch()
+        top.addWidget(back, Qt.AlignLeft); top.addStretch()
         main.addLayout(top)
 
-        # Header
-        hdr = QHBoxLayout()
-        hdr.addStretch()
-        plus = QLabel("➕")
-        plus.setFont(QFont("Segoe UI", 26))
-        plus.setStyleSheet("color: white; background: transparent;")
+        # ── Header ──
+        hdr = QHBoxLayout(); hdr.addStretch()
+        plus = QLabel("➕"); plus.setFont(QFont("Segoe UI", 26))
+        plus.setStyleSheet("color:white; background:transparent;")
         title = QLabel("Add New Patient")
         title.setFont(QFont("Segoe UI", 26, QFont.Bold))
-        title.setStyleSheet("color: white; background: transparent;")
-        hdr.addWidget(plus)
-        hdr.addWidget(title)
-        hdr.addStretch()
+        title.setStyleSheet("color:white; background:transparent;")
+        hdr.addWidget(plus); hdr.addWidget(title); hdr.addStretch()
         main.addLayout(hdr)
 
-        # Form panel
+        # ── Form Panel ──
         panel = QFrame()
-        panel.setStyleSheet("QFrame { background: #e0e0e0; border-radius: 8px; }")
+        panel.setStyleSheet("QFrame{background:#e0e0e0;border-radius:8px;}")
         shadow = QGraphicsDropShadowEffect(panel)
-        shadow.setBlurRadius(15)
-        shadow.setOffset(0, 3)
-        shadow.setColor(QColor(0, 0, 0, 60))
+        shadow.setBlurRadius(15); shadow.setOffset(0,3); shadow.setColor(QColor(0,0,0,60))
         panel.setGraphicsEffect(shadow)
         panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         form = QFormLayout(panel)
         form.setLabelAlignment(Qt.AlignRight)
-        form.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+        form.setFormAlignment(Qt.AlignLeft|Qt.AlignTop)
         form.setHorizontalSpacing(20)
         form.setVerticalSpacing(18)
-        form.setContentsMargins(20, 20, 20, 20)
+        form.setContentsMargins(20,20,20,20)
         form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
 
         def mk(widget):
-            widget.setFont(QFont("Segoe UI", 18))
-            widget.setStyleSheet(
-                "background: white; border: 1px solid #ccc;"
-                "border-radius: 4px; padding: 8px;"
-            )
+            # big font + sizing
+            font = QFont("Segoe UI", 18)
+            widget.setFont(font)
+            widget.setStyleSheet("""
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 8px 12px;
+                min-height: 40px;
+            """)
             widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+            # extra for combo-popups
+            if isinstance(widget, QComboBox):
+                view = widget.view()
+                view.setFont(font)
+                view.setStyleSheet("""
+                    QListView {
+                        font-family: Segoe UI;
+                        font-size: 18pt;
+                    }
+                    QListView::item {
+                        min-height: 40px;
+                    }
+                """)
             return widget
 
         def lbl(text):
             l = QLabel(text)
             l.setFont(QFont("Segoe UI", 18))
-            l.setStyleSheet("color: #333;")
+            l.setStyleSheet("color:#333;")
             return l
 
-        # Fields
+        # ── Form Fields ──
         self.phone_input = mk(QLineEdit())
         self.phone_input.setPlaceholderText("Contact phone")
         self.phone_input.editingFinished.connect(self._lookup_owner)
@@ -112,75 +120,92 @@ class AddPatientPage(QWidget):
         self.pet_name = mk(QLineEdit())
         self.pet_name.setPlaceholderText("Pet name")
 
-        self.species = mk(QComboBox())
-        self.species.setEditable(True)
+        self.species = mk(QComboBox()); self.species.setEditable(True)
         self.species.addItems(get_all_species())
         self.species.lineEdit().setPlaceholderText("Select or type species")
-        self.species.currentTextChanged.connect(self._on_species_changed)
-
-        self.color = mk(QComboBox())
-        self.color.setEditable(True)
-        self.color.addItems(get_colors_by_species(self.species.currentText()))
-        self.color.lineEdit().setPlaceholderText("Select or type color")
+        # ── Make the editable combo’s line-edit match the other inputs ──
+        le = self.species.lineEdit()
+        le.setFont(QFont("Segoe UI", 18))
+        le.setStyleSheet("""
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            min-height: 40px;
+        """)
 
         self.first_visit = mk(QDateEdit())
         self.first_visit.setCalendarPopup(True)
-        self.first_visit.setDate(QDate.currentDate())
+        self.first_visit.setDisplayFormat("dd MMMM yyyy")
 
-        self.gender = mk(QComboBox())
-        self.gender.addItems(["Male", "Female"])
+        # create a calendar that always shows the nav‐bar
+        cal = QCalendarWidget(self)
+        cal.setNavigationBarVisible(True)
 
-        self.age = mk(QSpinBox())
-        self.age.setRange(0, 100)
-        self.age.setValue(0)
+        # ── Force the nav‐bar text & combo to be dark ──
+        cal.setStyleSheet("""
+            /* navigation bar background */
+            QCalendarWidget QWidget#qt_calendar_navigationbar {
+                background: white;
+            }
+            /* prev/next arrows and month/year text */
+            QCalendarWidget QToolButton {
+                color: black;
+                background: transparent;
+                border: none;
+            }
+            /* the month/year drop-down */
+            QCalendarWidget QComboBox {
+                color: black;
+                background: white;
+            }
+        """)
 
-        # Add rows
-        for label, widget in [
+        self.first_visit.setCalendarWidget(cal)
+
+        # sync today’s date so month/year header is drawn immediately
+        today = QDate.currentDate()
+        self.first_visit.setDate(today)
+        cal.setSelectedDate(today)
+        cal.setCurrentPage(today.year(), today.month())
+
+        self.gender = mk(QComboBox()); self.gender.addItems(["Male","Female"])
+
+        # add rows in order
+        for label_text, widget in [
             ("Phone*:",       self.phone_input),
             ("Owner Name*:",  self.owner_name),
             ("Pet Name*:",    self.pet_name),
             ("Species*:",     self.species),
-            ("Color*:",       self.color),
             ("First Visit*:", self.first_visit),
             ("Gender*:",      self.gender),
-            ("Age*:",         self.age),
         ]:
-            form.addRow(lbl(label), widget)
+            form.addRow(lbl(label_text), widget)
 
-        # Center panel
-        ph = QHBoxLayout()
-        ph.setContentsMargins(20, 10, 20, 10)
-        ph.addStretch()
-        ph.addWidget(panel)
-        ph.addStretch()
-        main.addLayout(ph)
+        # center the panel
+        ch = QHBoxLayout(); ch.setContentsMargins(20,10,20,10)
+        ch.addStretch(); ch.addWidget(panel); ch.addStretch()
+        main.addLayout(ch)
 
-        # Save / Cancel buttons
-        bh = QHBoxLayout()
-        bh.setContentsMargins(20, 10, 20, 20)
-        bh.addStretch()
-        save = QPushButton("💾 Save")
-        save.setFont(QFont("Segoe UI", 16))
-        save.setCursor(Qt.PointingHandCursor)
-        save.setFixedSize(120, 40)
+        # ── Save / Cancel Buttons ──
+        bh = QHBoxLayout(); bh.setContentsMargins(20,10,20,20); bh.addStretch()
+        save = QPushButton("💾 Save"); save.setFont(QFont("Segoe UI",18))
+        save.setCursor(Qt.PointingHandCursor); save.setFixedSize(140,45)
         save.setStyleSheet(
-            "QPushButton { background: #009999; color: white; border-radius: 4px; }"
-            "QPushButton:hover { background: #008080; }"
+            "QPushButton{background:#009999;color:white;border-radius:4px;}"
+            "QPushButton:hover{background:#008080}"
         )
         save.clicked.connect(self._save)
 
-        cancel = QPushButton("✖ Cancel")
-        cancel.setFont(QFont("Segoe UI", 16))
-        cancel.setCursor(Qt.PointingHandCursor)
-        cancel.setFixedSize(120, 40)
+        cancel = QPushButton("✖ Cancel"); cancel.setFont(QFont("Segoe UI",18))
+        cancel.setCursor(Qt.PointingHandCursor); cancel.setFixedSize(140,45)
         cancel.setStyleSheet(
-            "QPushButton { background: #b40000; color: white; border-radius: 4px; }"
-            "QPushButton:hover { background: #8a0000; }"
+            "QPushButton{background:#b40000;color:white;border-radius:4px;}"
+            "QPushButton:hover{background:#8a0000}"
         )
         cancel.clicked.connect(self._handle_cancel)
 
-        bh.addWidget(save)
-        bh.addWidget(cancel)
+        bh.addWidget(save); bh.addWidget(cancel)
         main.addLayout(bh)
 
     def _lookup_owner(self):
@@ -191,32 +216,29 @@ class AddPatientPage(QWidget):
         if owner:
             self.owner_name.setText(owner['name'])
         else:
-            self.owner_name.clear()
-
-    def _on_species_changed(self, species):
-        self.color.clear()
-        self.color.addItems(get_colors_by_species(species))
+            self.owner_name.clear()  # silent if new
 
     def _clear_form(self):
-        self.phone_input.clear()
-        self.owner_name.clear()
-        self.pet_name.clear()
+        # only clear the editable fields — don’t call clear() on gender
+        for w in [
+            self.phone_input, self.owner_name, self.pet_name,
+            self.species, self.first_visit
+        ]:
+            if hasattr(w, 'clear'):
+                w.clear()
+            elif isinstance(w, QDateEdit):
+                w.setDate(QDate.currentDate())
 
+        # reset species dropdown
         self.species.blockSignals(True)
         self.species.clear()
         self.species.addItems(get_all_species())
         self.species.lineEdit().clear()
         self.species.blockSignals(False)
 
-        self.color.blockSignals(True)
-        self.color.clear()
-        self.color.addItems(get_colors_by_species(self.species.currentText()))
-        self.color.lineEdit().clear()
-        self.color.blockSignals(False)
+        # reset gender combobox to its default first option
+        self.gender.setCurrentIndex(0)
 
-        self.first_visit.setDate(QDate.currentDate())
-        self.gender.setCurrentText("Male")
-        self.age.setValue(0)
 
     def _handle_cancel(self):
         self._clear_form()
@@ -227,48 +249,37 @@ class AddPatientPage(QWidget):
         owner       = self.owner_name.text().strip()
         pet         = self.pet_name.text().strip()
         species     = self.species.currentText().strip()
-        color       = self.color.currentText().strip()
         first_visit = self.first_visit.date().toPyDate().isoformat()
         gender      = self.gender.currentText().strip()
-        age         = self.age.value()
 
-        # Validate required
-        if not all([phone, owner, pet, species, color, first_visit]):
-            QMessageBox.warning(
-                self, "Validation Error",
-                "Please fill in all required fields."
-            )
+        # required validation
+        if not all([phone, owner, pet, species, first_visit]):
+            QMessageBox.warning(self, "Validation Error",
+                                "Please fill all required fields.")
             return
 
-        # Ensure species & color exist
+        # ensure species/color exist
         if species not in get_all_species():
             add_species(species)
-        if color not in get_colors_by_species(species):
-            add_color(color)
 
-        # Upsert owner
+
         owner_id = add_owner({'name': owner, 'phone': phone})
 
-        # Check for existing pet
+        # duplicate?
         existing = find_pet(owner_id, species, pet)
         if existing:
             resp = QMessageBox.question(
-                self,
-                "Pet Already Exists",
-                f"A {species} named {pet} already exists for this owner.\n"
-                "Update that record?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                self, "Pet Already Exists",
+                f"A {species} named {pet} already exists.\nUpdate it?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if resp == QMessageBox.Yes:
                 pet_data = {
-                    'owner_id':    owner_id,
-                    'pet_name':    pet,
-                    'species':     species,
-                    'color':       color,
+                    'owner_id': owner_id,
+                    'pet_name': pet,
+                    'species': species,
                     'first_visit': first_visit,
-                    'gender':      gender,
-                    'age':         age
+                    'gender': gender
                 }
                 update_pet(existing['id'], pet_data)
                 QMessageBox.information(self, "Updated", "Pet record updated.")
@@ -276,17 +287,15 @@ class AddPatientPage(QWidget):
                 self.on_back()
                 return
             else:
-                return  # user chose not to update
+                return
 
-        # No existing → insert new
+        # insert new
         pet_data = {
-            'owner_id':    owner_id,
-            'pet_name':    pet,
-            'species':     species,
-            'color':       color,
+            'owner_id': owner_id,
+            'pet_name': pet,
+            'species': species,
             'first_visit': first_visit,
-            'gender':      gender,
-            'age':         age
+            'gender': gender
         }
         try:
             add_pet(pet_data)
@@ -294,13 +303,14 @@ class AddPatientPage(QWidget):
             QMessageBox.critical(self, "Database Error", str(e))
             return
 
-        QMessageBox.information(self, "Success", "Patient added successfully.")
+        QMessageBox.information(self, "Success", "Patient added.")
         self._clear_form()
         self.on_back()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     page = AddPatientPage(on_back=app.quit)
-    page.resize(900, 650)
+    page.resize(980, 700)
     page.show()
     sys.exit(app.exec_())
