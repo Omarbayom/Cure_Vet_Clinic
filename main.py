@@ -1,6 +1,8 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QEvent, Qt, QTimer
+
 
 from ui.splash            import SplashScreen
 from ui.welcome           import WelcomeWidget
@@ -56,6 +58,23 @@ class MainApp(QMainWindow):
                 self.showFullScreen()
         else:
             super().keyPressEvent(event)
+
+    def changeEvent(self, event):
+        """
+        When the user clicks the maximize/restore button, go true full-screen,
+        and when they restore out of full-screen, go back to normal.
+        """
+        if event.type() == QEvent.WindowStateChange:
+            # user clicked “maximize”
+            if self.windowState() & Qt.WindowMaximized:
+                # schedule full-screen so we don’t recurse on state change
+                QTimer.singleShot(0, self.showFullScreen)
+            # user clicked “restore” while in full-screen
+            elif not (self.windowState() & Qt.WindowFullScreen) and self.isFullScreen():
+                QTimer.singleShot(0, self.showNormal)
+
+        # always call the base implementation
+        super().changeEvent(event)
 
     # ─── Navigation Callbacks ─────────────────────────────────────────────────
 
