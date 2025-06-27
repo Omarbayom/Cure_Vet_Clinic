@@ -7,9 +7,16 @@ from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt
 
 class DashboardWidget(QWidget):
-    def __init__(self, on_back, on_add_patient, on_manage_inventory):
+    def __init__(self,
+                 on_back,
+                 on_book_appointment,
+                 on_show_history,
+                 on_add_patient,
+                 on_manage_inventory):
         super().__init__()
         self.on_back             = on_back
+        self.on_book_appointment = on_book_appointment
+        self.on_show_history     = on_show_history
         self.on_add_patient      = on_add_patient
         self.on_manage_inventory = on_manage_inventory
         self.buttons             = []
@@ -29,24 +36,17 @@ class DashboardWidget(QWidget):
         self.main_layout.setContentsMargins(40, 40, 40, 40)
         self.main_layout.setSpacing(20)
 
-        # ← Back Arrow
+        # ← Back
         top_bar = QHBoxLayout()
         arrow = QToolButton()
         arrow.setText("←")
         arrow.setFont(QFont("Segoe UI", 32, QFont.Bold))
         arrow.setFixedSize(60, 60)
         arrow.setCursor(Qt.PointingHandCursor)
-        arrow.setStyleSheet("""
-            QToolButton {
-                background: transparent;
-                color: white;
-                border: none;
-                padding: 0;
-            }
-            QToolButton:hover {
-                color: #ffdddd;
-            }
-        """)
+        arrow.setStyleSheet(
+            "QToolButton { background: transparent; color: white; border: none; }"
+            "QToolButton:hover { color: #ffdddd; }"
+        )
         arrow.clicked.connect(self.on_back)
         top_bar.addWidget(arrow)
         self.main_layout.addLayout(top_bar)
@@ -58,15 +58,15 @@ class DashboardWidget(QWidget):
         title.setAlignment(Qt.AlignCenter)
         self.main_layout.addWidget(title)
 
-        # Scrollable grid
+        # Scrollable feature grid
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("background: transparent; border: none;")
-        self.grid_root   = QWidget()
-        self.grid_root.setStyleSheet("background: transparent;")
-        self.grid_layout = QGridLayout(self.grid_root)
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        self.grid_layout = QGridLayout(container)
         self.grid_layout.setSpacing(20)
-        scroll.setWidget(self.grid_root)
+        scroll.setWidget(container)
         self.main_layout.addWidget(scroll)
 
         # Feature buttons
@@ -85,33 +85,37 @@ class DashboardWidget(QWidget):
             btn = QPushButton(t)
             btn.setFont(QFont("Segoe UI", 14, QFont.Bold))
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: white;
-                    color: #007f7f;
-                    padding: 16px;
-                    border-radius: 12px;
-                    border: 2px solid #009999;
-                }
-                QPushButton:hover {
-                    background-color: #e6f2f2;
-                }
-            """)
-            # wire up patient vs inventory vs “coming soon”
-            if t == "➕ Add New Patient":
+            btn.setStyleSheet(
+                "QPushButton {"
+                "  background-color: white;"
+                "  color: #007f7f;"
+                "  padding: 16px;"
+                "  border-radius: 12px;"
+                "  border: 2px solid #009999;"
+                "}"
+                "QPushButton:hover { background-color: #e6f2f2; }"
+            )
+
+            if t == "📅 Book an Appointment":
+                btn.clicked.connect(self.on_book_appointment)
+            elif t == "📋 Show Patient History":
+                btn.clicked.connect(self.on_show_history)
+            elif t == "➕ Add New Patient":
                 btn.clicked.connect(self.on_add_patient)
             elif t == "📦 Manage Inventory":
                 btn.clicked.connect(self.on_manage_inventory)
             else:
                 btn.clicked.connect(
                     lambda _, name=t: QMessageBox.information(
-                        self, "Coming Soon",
+                        self,
+                        "Coming Soon",
                         f"🔧 '{name}' will be implemented soon."
                     )
                 )
+
             self.buttons.append(btn)
 
-        # initial layout
+        # Populate grid
         self._update_grid()
 
     def resizeEvent(self, event):
@@ -119,27 +123,27 @@ class DashboardWidget(QWidget):
         super().resizeEvent(event)
 
     def _update_grid(self):
-        # clear
+        # clear old widgets
         for i in reversed(range(self.grid_layout.count())):
             w = self.grid_layout.itemAt(i).widget()
             w.setParent(None)
-
         # decide columns
-        w    = self.width()
+        w = self.width()
         cols = 3 if w >= 1200 else 2 if w >= 800 else 1
-
-        # re-add
         for idx, btn in enumerate(self.buttons):
-            row, col = divmod(idx, cols)
-            self.grid_layout.addWidget(btn, row, col)
+            r, c = divmod(idx, cols)
+            self.grid_layout.addWidget(btn, r, c)
+
 
 if __name__ == "__main__":
     from PyQt5.QtWidgets import QApplication
     app = QApplication(sys.argv)
-    w = DashboardWidget(
+    dash = DashboardWidget(
         on_back=lambda: print("Back"),
+        on_book_appointment=lambda: print("Book Visit"),
+        on_show_history=lambda: print("Show History"),
         on_add_patient=lambda: print("Add Patient"),
         on_manage_inventory=lambda: print("Inventory")
     )
-    w.showFullScreen()
+    dash.show()
     sys.exit(app.exec_())

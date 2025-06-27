@@ -66,28 +66,31 @@ def _initialize_database():
 
     # ── Visits ──
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS visits (
-        id                INTEGER PRIMARY KEY AUTOINCREMENT,
-        pet_id            INTEGER,
-        visit_date        TEXT,       -- YYYY-MM-DD
-        notes             TEXT,
-        next_appointment  TEXT,       -- YYYY-MM-DD
-        FOREIGN KEY(pet_id) REFERENCES pets(id)
-    );
-    """)
+        CREATE TABLE IF NOT EXISTS visits (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          pet_id            INTEGER,
+          visit_date        TEXT,
+          notes             TEXT,
+          next_appointment  TEXT,
+          doctor_name       TEXT,
+          FOREIGN KEY(pet_id) REFERENCES pets(id)
+        );
+        """)
 
-    # ── Prescriptions ──
+        # prescriptions table: now supports external meds
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS prescriptions (
-        id             INTEGER PRIMARY KEY AUTOINCREMENT,
-        visit_id       INTEGER,
-        inventory_id   INTEGER,
-        quantity       INTEGER,
-        unit_price     REAL,
-        FOREIGN KEY(visit_id)     REFERENCES visits(id),
-        FOREIGN KEY(inventory_id) REFERENCES inventory(id)
-    );
-    """)
+        CREATE TABLE IF NOT EXISTS prescriptions (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          visit_id       INTEGER,
+          inventory_id   INTEGER,
+          med_name       TEXT,
+          is_inventory   INTEGER DEFAULT 1,
+          quantity       INTEGER,
+          unit_price     REAL,
+          FOREIGN KEY(visit_id)     REFERENCES visits(id),
+          FOREIGN KEY(inventory_id) REFERENCES inventory(id)
+        );
+        """)
 
     conn.commit()
     conn.close()
@@ -336,56 +339,141 @@ def get_inventory_batches(name: str) -> list[dict]:
 # ── Visits & Prescriptions ──
 
 def get_visits_by_pet(pet_id: int) -> list[dict]:
-    conn = get_connection(); cur = conn.cursor()
+    conn = get_connection()
+    cur = conn.cursor()
     cur.execute("""
-      SELECT id, visit_date, notes, next_appointment
+      SELECT id, visit_date, notes, next_appointment, doctor_name
         FROM visits
        WHERE pet_id = ?
        ORDER BY visit_date DESC
     """, (pet_id,))
-    rows = [dict(r) for r in cur.fetchall()]; conn.close()
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
     return rows
+
 
 def add_visit(data: dict) -> int:
     """
-    data = {
-      'pet_id': int,
-      'visit_date': 'YYYY-MM-DD',
-      'notes': str,
-      'next_appointment': 'YYYY-MM-DD'
-    }
+    data must include:
+      'pet_id', 'visit_date', 'notes', 'next_appointment', 'doctor_name'
     """
-    conn = get_connection(); cur = conn.cursor()
+    conn = get_connection()
+    cur = conn.cursor()
     cur.execute("""
       INSERT INTO visits
-        (pet_id, visit_date, notes, next_appointment)
-      VALUES (?, ?, ?, ?)
+        (pet_id, visit_date, notes, next_appointment, doctor_name)
+      VALUES (?, ?, ?, ?, ?)
     """, (
-      data['pet_id'], data['visit_date'],
-      data['notes'], data['next_appointment']
+      data['pet_id'],
+      data['visit_date'],
+      data['notes'],
+      data['next_appointment'],
+      data['doctor_name']
     ))
     vid = cur.lastrowid
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
     return vid
 
 def add_prescription(presc: dict) -> int:
     """
-    presc = {
-      'visit_id': int,
-      'inventory_id': int,
-      'quantity': int,
-      'unit_price': float
-    }
+    presc must include:
+      'visit_id', 'inventory_id' or None,
+      'med_name' or None, 'is_inventory',
+      'quantity', 'unit_price'
     """
-    conn = get_connection(); cur = conn.cursor()
+    conn = get_connection()
+    cur = conn.cursor()
     cur.execute("""
       INSERT INTO prescriptions
-        (visit_id, inventory_id, quantity, unit_price)
-      VALUES (?, ?, ?, ?)
+        (visit_id, inventory_id, med_name, is_inventory, quantity, unit_price)
+      VALUES (?, ?, ?, ?, ?, ?)
     """, (
-      presc['visit_id'], presc['inventory_id'],
-      presc['quantity'], presc['unit_price']
+      presc['visit_id'],
+      presc.get('inventory_id'),
+      presc.get('med_name'),
+      presc['is_inventory'],
+      presc['quantity'],
+      presc['unit_price']
     ))
     pid = cur.lastrowid
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
     return pid
+
+def get_prescriptions_by_visit(visit_id: int) -> list[dict]:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+      SELECT
+        p.quantity,
+        p.unit_price,
+        p.med_name,
+        p.is_inventory,
+        i.name         AS item_name,
+        i.default_sell_price
+      FROM prescriptions p
+      LEFT JOIN inventory i
+        ON p.inventory_id = i.id
+      WHERE p.visit_id = ?
+    """, (visit_id,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def find_owners_by_name(name: str) -> list[dict]:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+      SELECT id, name, phone
+        FROM owners
+       WHERE name LIKE ?
+    """, (f"%{name}%",))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def get_patient_history(owner_id: int) -> list[dict]:
+    """
+    Returns every visit (across all pets) for this owner,
+    with fields: id, visit_date, pet_name, notes, doctor_name, next_appointment.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+      SELECT
+        v.id,
+        v.visit_date,
+        p.pet_name,
+        v.notes,
+        v.doctor_name,
+        v.next_appointment
+      FROM visits v
+      JOIN pets    p ON v.pet_id = p.id
+      WHERE p.owner_id = ?
+      ORDER BY v.visit_date DESC
+    """, (owner_id,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def update_inventory_quantity(item_id: int, new_quantity: int) -> None:
+    """
+    Decrement-only updater: if new_quantity > 0, update the quantity;
+    otherwise delete the batch entirely.
+    """
+    conn = get_connection()
+    cur  = conn.cursor()
+    if new_quantity > 0:
+        cur.execute(
+            "UPDATE inventory SET quantity = ? WHERE id = ?",
+            (new_quantity, item_id)
+        )
+    else:
+        cur.execute(
+            "DELETE FROM inventory WHERE id = ?",
+            (item_id,)
+        )
+    conn.commit()
+    conn.close()
+

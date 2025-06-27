@@ -10,6 +10,10 @@ from ui.dashboard         import DashboardWidget
 from ui.add_patient       import AddPatientPage
 from ui.add_inventory     import AddInventoryPage
 from ui.inventory_list    import InventoryListPage
+from ui.add_visit         import AddVisitPage
+from ui.show_history      import ShowHistoryPage
+
+
 
 class MainApp(QMainWindow):
     def __init__(self):
@@ -22,29 +26,50 @@ class MainApp(QMainWindow):
 
         # Pages
         self.welcome          = WelcomeWidget(on_start=self.show_dashboard)
-        self.dashboard        = DashboardWidget(
-            on_back=self.show_welcome,
-            on_add_patient=self.show_add_patient,
-            on_manage_inventory=self.show_inventory_list
-
+        self.dashboard = DashboardWidget(
+            on_back             = self.show_welcome,
+            on_book_appointment = self.show_add_visit,
+            on_show_history     = self.show_history_search,
+            on_add_patient      = self.show_add_patient,
+            on_manage_inventory = self.show_inventory_list
         )
+
+
+
 
 
         self.add_patient      = AddPatientPage(on_back=self.show_dashboard)
         self.inventory_list   = InventoryListPage(on_back=self.show_dashboard,
                                                   on_add=self.show_add_inventory)
         self.add_inventory    = AddInventoryPage(on_back=self.show_inventory_list)
+        # Add Visit page (new visit flow, with ability to jump to history)
+        # — after self.add_inventory  —
+        self.add_visit        = AddVisitPage(
+            on_back         = self.show_dashboard,
+            on_show_history = self.show_history        # callback(owner,pet)
+        )
+        self.show_history_page = ShowHistoryPage(
+            on_back      = self.show_dashboard,
+            on_add_visit = self.show_add_visit_for_pet # callback(owner,pet)
+        )
+
+
 
 
         # Add pages to the stack
+        # ─── Replace your stacking loop with this ──────────────────────────────────
         for w in (
             self.welcome,
             self.dashboard,
             self.add_patient,
             self.inventory_list,
-            self.add_inventory
+            self.add_inventory,
+            self.add_visit,
+            self.show_history_page
         ):
             self.stack.addWidget(w)
+
+
 
         # start on welcome
         self.stack.setCurrentWidget(self.welcome)
@@ -92,9 +117,67 @@ class MainApp(QMainWindow):
 
     def show_add_inventory(self):
         self.stack.setCurrentWidget(self.add_inventory)
-    def show_remove_inventory(self):
-        self.stack.setCurrentWidget(self.remove_inventory)
 
+        
+    # ─── Add these navigation methods near the others ───────────────────────────
+
+    def show_add_visit(self):
+        """Dashboard → AddVisitPage with blank search."""
+        self.add_visit.reset_visit_forms()
+        self.stack.setCurrentWidget(self.add_visit)
+
+    def show_history_search(self):
+        """Dashboard → ShowHistoryPage in search mode."""
+        # reset fields
+        sh = self.show_history_page
+        sh.search_input.clear()
+        sh.owner_list.clear()
+        sh.pet_list.clear()
+        sh.history_list.clear()
+        sh.details.clear()
+        sh.new_visit_btn.setEnabled(False)
+        self.stack.setCurrentWidget(sh)
+
+    def show_history(self, owner, pet):
+        """
+        Dashboard → ShowHistoryPage for this (owner,pet)
+        (without needing a show_history() method on the page itself)
+        """
+        page = self.show_history_page
+
+        # 1) Bring up the History page
+        self.stack.setCurrentWidget(page)
+
+        # 2) Run the owner‐search logic
+        page.search_input.setText(owner['name'])          # triggers on_search_owner :contentReference[oaicite:0]{index=0}
+        # 3) Find & select the exact owner item
+        for i in range(page.owner_list.count()):
+            itm = page.owner_list.item(i)
+            if itm.data['id'] == owner['id']:
+                page.owner_list.setCurrentItem(itm)
+                page.on_owner_selected(itm)
+                break
+
+        # 4) Find & select the right pet
+        for i in range(page.pet_list.count()):
+            itm = page.pet_list.item(i)
+            # pet_list items store {'species', 'pet_name'} in itm.data :contentReference[oaicite:1]{index=1}
+            d = itm.data
+            if d['pet_name'] == pet['pet_name'] and d['species'] == pet['species']:
+                page.pet_list.setCurrentItem(itm)
+                page.on_pet_selected(itm)
+                break
+
+        # 5) Now the visit‐list is loaded and you can click through it in the UI
+
+
+    def show_add_visit_for_pet(self, owner, pet):
+        """ShowHistoryPage → AddVisitPage pre-filled for this (owner,pet)."""
+        self.add_visit.set_context(owner, pet)
+        self.stack.setCurrentWidget(self.add_visit)
+
+
+    
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     main_win = MainApp()
