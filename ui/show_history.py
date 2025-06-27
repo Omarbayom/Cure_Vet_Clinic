@@ -225,7 +225,7 @@ class ShowHistoryPage(QWidget):
                     if p['unit_price'] is not None
                     else (p.get('default_sell_price') or 0.0)
                 )
-                self.details.append(f" • [{src}] {name}: {qty} @ {price:.2f}")
+                self.details.append(f" • [{src}] {name}: {qty} ")
         else:
             self.details.append("\nNo items dispensed.")
 

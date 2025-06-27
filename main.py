@@ -12,6 +12,7 @@ from ui.add_inventory     import AddInventoryPage
 from ui.inventory_list    import InventoryListPage
 from ui.add_visit         import AddVisitPage
 from ui.show_history      import ShowHistoryPage
+from ui.calendar_page     import CalendarPage
 
 
 
@@ -31,13 +32,17 @@ class MainApp(QMainWindow):
             on_book_appointment = self.show_add_visit,
             on_show_history     = self.show_history_search,
             on_add_patient      = self.show_add_patient,
-            on_manage_inventory = self.show_inventory_list
+            on_manage_inventory = self.show_inventory_list,
+            on_show_calendar    = self.show_calendar_page
         )
 
 
 
 
-
+        self.calendar_page = CalendarPage(
+            on_back=self.show_dashboard,
+            on_show_history=self.show_history
+        )
         self.add_patient      = AddPatientPage(on_back=self.show_dashboard)
         self.inventory_list   = InventoryListPage(on_back=self.show_dashboard,
                                                   on_add=self.show_add_inventory)
@@ -65,7 +70,8 @@ class MainApp(QMainWindow):
             self.inventory_list,
             self.add_inventory,
             self.add_visit,
-            self.show_history_page
+            self.show_history_page,
+            self.calendar_page
         ):
             self.stack.addWidget(w)
 
@@ -175,6 +181,15 @@ class MainApp(QMainWindow):
         """ShowHistoryPage → AddVisitPage pre-filled for this (owner,pet)."""
         self.add_visit.set_context(owner, pet)
         self.stack.setCurrentWidget(self.add_visit)
+
+    def show_calendar_page(self):
+        """
+        Switch to the CalendarPage, reloading its data first.
+        """
+        # reload appointments in case anything changed
+        self.calendar_page._load_appointments()
+        # show it
+        self.stack.setCurrentWidget(self.calendar_page)
 
 
     

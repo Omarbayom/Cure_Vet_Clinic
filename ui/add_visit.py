@@ -384,3 +384,45 @@ class AddVisitPage(QWidget):
 
         QMessageBox.information(self, "Done", "Prescriptions saved.")
         self.reset_visit_forms()
+    def set_context(self, owner: dict, pet: dict):
+        """
+        Called when user clicks “Add New Visit” on the history page.
+        Pre-selects the owner/pet, loads recent visits, and resets the wizard.
+        """
+        # 1. reset everything and go to page 0
+        self.reset_visit_forms()
+        self._goto(0)
+
+        # 2. stash owner/pet
+        self.selected_owner = owner
+        self.selected_pet   = pet
+
+        # 3. populate owner_list with just this owner
+        from PyQt5.QtWidgets import QListWidgetItem
+        self.owner_list.clear()
+        oi = QListWidgetItem(f"{owner['name']} — {owner['phone']}")
+        oi.data = owner
+        self.owner_list.addItem(oi)
+        self.owner_list.setCurrentItem(oi)
+
+        # 4. populate pet_list and select this pet
+        self.pet_list.clear()
+        for species, petname in db_manager.get_pets_by_owner(owner['id']):
+            pi = QListWidgetItem(f"{petname} ({species})")
+            pi.data = {'species': species, 'pet_name': petname}
+            self.pet_list.addItem(pi)
+            if petname == pet['pet_name'] and species == pet['species']:
+                self.pet_list.setCurrentItem(pi)
+                # fire the selection logic
+                self.on_pet_selected(pi)
+
+        # 5. load that pet’s recent visits into history_list
+        self.history_list.clear()
+        for v in db_manager.get_visits_by_pet(pet['id']):
+            wi = QListWidgetItem(f"{v['visit_date']}: {v['notes'][:40]}…")
+            wi.data = v
+            self.history_list.addItem(wi)
+
+        # 6. move to page 1 (Visit Details) so they can start entering data
+        self._goto(1)
+

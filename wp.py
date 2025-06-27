@@ -108,14 +108,18 @@ if __name__ == "__main__":
 
     # Map each phone number to a name
     recipients = {
-        "201093553466":"Omar",
+        "201013866238":"joe",
+        "201093553466":"omar",
+        "01222742029":"willy"
         # add more recipients here…
     }
 
     total = len(recipients)
     for idx, (number, name) in enumerate(recipients.items(), start=1):
         print(f"\n➡️  Sending to {name} ({number}) — {idx}/{total}")
-        message = f"Hello {name}! This is your message #{idx} of {total}."
+        message = f"Hello {name}! This is your message form my pre message sender script. " \
+                  "You can customize this message as needed. " \
+                  "This is a test message to ensure everything works correctly."
         if number.startswith("0"):
             number = "2" + number  # ensure country code
 

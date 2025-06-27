@@ -1,3 +1,5 @@
+# ui/dashboard.py
+
 import sys
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QPushButton, QScrollArea, QGridLayout,
@@ -12,13 +14,15 @@ class DashboardWidget(QWidget):
                  on_book_appointment,
                  on_show_history,
                  on_add_patient,
-                 on_manage_inventory):
+                 on_manage_inventory,
+                 on_show_calendar):
         super().__init__()
         self.on_back             = on_back
         self.on_book_appointment = on_book_appointment
         self.on_show_history     = on_show_history
         self.on_add_patient      = on_add_patient
         self.on_manage_inventory = on_manage_inventory
+        self.on_calendar         = on_show_calendar
         self.buttons             = []
         self._build_ui()
 
@@ -74,7 +78,7 @@ class DashboardWidget(QWidget):
             "📅 Book an Appointment",
             "📋 Show Patient History",
             "✏️ Update Patient Data",
-            "📆 Show Today's Schedule",
+            "📆 Show Calendar",
             "➕ Add New Patient",
             "🧾 Generate Invoice",
             "📦 Manage Inventory",
@@ -96,10 +100,13 @@ class DashboardWidget(QWidget):
                 "QPushButton:hover { background-color: #e6f2f2; }"
             )
 
+            # connect signals
             if t == "📅 Book an Appointment":
                 btn.clicked.connect(self.on_book_appointment)
             elif t == "📋 Show Patient History":
                 btn.clicked.connect(self.on_show_history)
+            elif t == "📆 Show Calendar":
+                btn.clicked.connect(self.on_calendar)
             elif t == "➕ Add New Patient":
                 btn.clicked.connect(self.on_add_patient)
             elif t == "📦 Manage Inventory":
@@ -127,23 +134,24 @@ class DashboardWidget(QWidget):
         for i in reversed(range(self.grid_layout.count())):
             w = self.grid_layout.itemAt(i).widget()
             w.setParent(None)
-        # decide columns
+        # choose columns based on width
         w = self.width()
         cols = 3 if w >= 1200 else 2 if w >= 800 else 1
         for idx, btn in enumerate(self.buttons):
             r, c = divmod(idx, cols)
             self.grid_layout.addWidget(btn, r, c)
 
-
 if __name__ == "__main__":
     from PyQt5.QtWidgets import QApplication
+    from ui.calendar_page import CalendarPage
     app = QApplication(sys.argv)
     dash = DashboardWidget(
         on_back=lambda: print("Back"),
         on_book_appointment=lambda: print("Book Visit"),
         on_show_history=lambda: print("Show History"),
         on_add_patient=lambda: print("Add Patient"),
-        on_manage_inventory=lambda: print("Inventory")
+        on_manage_inventory=lambda: print("Inventory"),
+        on_calendar=lambda: print("Show Calendar")
     )
     dash.show()
     sys.exit(app.exec_())
