@@ -15,7 +15,8 @@ class DashboardWidget(QWidget):
                  on_show_history,
                  on_add_patient,
                  on_manage_inventory,
-                 on_show_calendar):
+                 on_show_calendar,
+                 on_show_report):
         super().__init__()
         self.on_back             = on_back
         self.on_book_appointment = on_book_appointment
@@ -23,6 +24,7 @@ class DashboardWidget(QWidget):
         self.on_add_patient      = on_add_patient
         self.on_manage_inventory = on_manage_inventory
         self.on_calendar         = on_show_calendar
+        self.on_report           = on_show_report  # Placeholder for future report functionality
         self.buttons             = []
         self._build_ui()
 
@@ -111,6 +113,8 @@ class DashboardWidget(QWidget):
                 btn.clicked.connect(self.on_add_patient)
             elif t == "📦 Manage Inventory":
                 btn.clicked.connect(self.on_manage_inventory)
+            elif t == "📊 Reports and Analytics":
+                btn.clicked.connect(self.on_report)  # Placeholder for invoice generation
             else:
                 btn.clicked.connect(
                     lambda _, name=t: QMessageBox.information(

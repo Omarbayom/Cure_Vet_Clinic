@@ -10,7 +10,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
 
-from db_manager import add_or_restock_inventory
+import db_manager
+from db_manager import add_or_restock_inventory, add_purchase
 
 class AddInventoryPage(QWidget):
     def __init__(self, on_back):
@@ -100,53 +101,38 @@ class AddInventoryPage(QWidget):
         self.reorder_input    = mk(QSpinBox());       self.reorder_input.setRange(0,100000)
         self.exp_input        = mk(QDateEdit())
         self.default_price_in = mk(QDoubleSpinBox()); self.default_price_in.setRange(0,1e6)
+        # ── NEW: Purchase fields ──
         self.pur_date_input   = mk(QDateEdit())
         self.pur_price_input  = mk(QDoubleSpinBox()); self.pur_price_input.setRange(0,1e6)
 
-        # configure both date edits just like in AddPatientPage
+        # configure date widgets
         for date_widget in (self.exp_input, self.pur_date_input):
             date_widget.setCalendarPopup(True)
             date_widget.setDisplayFormat("dd MMMM yyyy")
             cal = QCalendarWidget(self)
             cal.setNavigationBarVisible(True)
-            # dark text/nav on white background
             cal.setStyleSheet("""
-                /* navigation bar bg */
-                QCalendarWidget QWidget#qt_calendar_navigationbar {
-                    background: white;
-                }
-                /* prev/next arrows & month/year text */
-                QCalendarWidget QToolButton {
-                    color: black;
-                    background: transparent;
-                    border: none;
-                }
-                /* month/year dropdown */
-                QCalendarWidget QComboBox {
-                    color: black;
-                    background: white;
-                }
+                QCalendarWidget QWidget#qt_calendar_navigationbar { background: white; }
+                QCalendarWidget QToolButton { color: black; background: transparent; border: none; }
+                QCalendarWidget QComboBox { color: black; background: white; }
             """)
             date_widget.setCalendarWidget(cal)
-            # sync today's date immediately
             today = QDate.currentDate()
             date_widget.setDate(today)
             cal.setSelectedDate(today)
             cal.setCurrentPage(today.year(), today.month())
 
-        # add to form
-        for label_text, widget in [
-            ("Name*:",             self.name_input),
-            ("Category*:",         self.category_input),
-            ("Unit*:",             self.unit_input),
-            ("Quantity*:",         self.qty_input),
-            ("Reorder Level:",     self.reorder_input),
-            ("Expiry Date*:",      self.exp_input),
-            ("Default Sell Price:",self.default_price_in),
-            ("Purchase Date*:",    self.pur_date_input),
-            ("Purchase Cost*:",    self.pur_price_input),
-        ]:
-            form.addRow(lbl(label_text), widget)
+        # add to form (including new purchase fields)
+        form.addRow(lbl("Name*:"),             self.name_input)
+        form.addRow(lbl("Category*:"),         self.category_input)
+        form.addRow(lbl("Unit*:"),             self.unit_input)
+        form.addRow(lbl("Quantity*:"),         self.qty_input)
+        form.addRow(lbl("Reorder Level:"),     self.reorder_input)
+        form.addRow(lbl("Expiry Date*:"),      self.exp_input)
+        form.addRow(lbl("Default Sell Price:"),self.default_price_in)
+        # ── NEW rows ──
+        form.addRow(lbl("Purchase Date*:"),    self.pur_date_input)
+        form.addRow(lbl("Purchase Cost*:"),    self.pur_price_input)
 
         content.addLayout(form)
 
@@ -183,7 +169,7 @@ class AddInventoryPage(QWidget):
         pdate   = self.pur_date_input.date().toPyDate().isoformat()
         cost    = self.pur_price_input.value()
 
-        if not all([name, cat, unit, qty, exp, pdate, cost]):
+        if not all([name, cat, unit, qty, exp, pdate]) or sell < 0 or cost <= 0:
             QMessageBox.warning(self, "Validation Error", "Please fill all required fields.")
             return
 
@@ -194,13 +180,19 @@ class AddInventoryPage(QWidget):
             'unit':               unit,
             'reorder_level':      reorder,
             'expiration_date':    exp,
-            'default_sell_price': sell,
-            'purchase_date':      pdate,
-            'purchase_price':     cost
+            'default_sell_price': sell
         }
 
         try:
-            add_or_restock_inventory(batch)
+            # first restock/add the inventory batch
+            inv_id = add_or_restock_inventory(batch)
+            # then record the purchase
+            add_purchase(
+                inventory_id=inv_id,
+                purchase_date=pdate,
+                quantity=qty,
+                unit_cost=cost
+            )
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
             return

@@ -134,6 +134,9 @@ class InventoryListPage(QWidget):
     def _load_data(self):
         self.tbl.setRowCount(0)
         for item in get_all_inventory():
+            if item['quantity'] == 0:
+                continue
+
             r = self.tbl.rowCount()
             self.tbl.insertRow(r)
             # populate columns

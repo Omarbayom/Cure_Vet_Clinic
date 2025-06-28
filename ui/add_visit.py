@@ -192,7 +192,7 @@ class AddVisitPage(QWidget):
 
         nav2 = QHBoxLayout()
         back2 = QPushButton("← Back"); back2.setStyleSheet(btn_style)
-        back2.clicked.connect(lambda: self._goto(1))
+        back2.clicked.connect(self._confirm_leave_prescriptions)
         add2 = QPushButton("Add Medicine"); add2.setStyleSheet(btn_style)
         add2.clicked.connect(self.on_add_pres_row)
         save2 = QPushButton("Save All"); save2.setStyleSheet(btn_style)
@@ -251,16 +251,34 @@ class AddVisitPage(QWidget):
             QMessageBox.warning(self, "Missing Data",
                                 "Select owner, pet, and enter doctor name first.")
             return
-        self.visit_id = db_manager.add_visit({
+        self.visit_data = {
             'pet_id':           self.selected_pet['id'],
             'visit_date':       QDate.currentDate().toString("yyyy-MM-dd"),
             'notes':            self.notes.toPlainText(),
             'next_appointment': self.next_date.date().toString("yyyy-MM-dd"),
             'doctor_name':      self.dr_name.text().strip()
-        })
+        }
         self.pres_table.setEnabled(True)
         self.save_pres_btn.setEnabled(True)
         self._goto(2)
+
+    def _confirm_leave_prescriptions(self):
+        # if no rows, go straight back
+        if self.pres_table.rowCount() == 0:
+            return self._goto(1)
+
+        # otherwise ask first
+        resp = QMessageBox.question(
+            self,
+            "Unsaved Medicines",
+            "You have added one or more medicines but haven’t saved yet.\n"
+            "If you go back now, these will be lost.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if resp == QMessageBox.Yes:
+            self._goto(1)
 
     def _show_history_detail(self, item):
         v = item.data
@@ -311,34 +329,56 @@ class AddVisitPage(QWidget):
         )
         self.history_list.clear()
         for v in db_manager.get_visits_by_pet(self.selected_pet['id']):
-            wi = QListWidgetItem(f"{v['visit_date']}: {v['notes'][:40]}…")
+            date   = v.get('visit_date', '')
+            doctor = v.get('doctor_name', 'Unknown')
+            # show date + doctor up front, then a snippet of notes
+            wi = QListWidgetItem(f"{date} — Dr. {doctor}…")
             wi.data = v
             self.history_list.addItem(wi)
+
 
     def on_add_pres_row(self):
         row = self.pres_table.rowCount()
         self.pres_table.insertRow(row)
+
         src = QComboBox()
-        if db_manager.get_all_inventory():
+        # re-check inventory stock every time you add a medicine row
+        items = db_manager.get_all_inventory()
+        if any(item.get('quantity', 0) > 0 for item in items):
             src.addItem("Inventory")
         src.addItem("Pharmacy")
-        src.currentTextChanged.connect(lambda t,r=row: self.on_source_changed(r, t))
+
+        src.currentTextChanged.connect(lambda t, r=row: self.on_source_changed(r, t))
         self.pres_table.setCellWidget(row, 0, src)
+
+        # placeholder for medicine name / widget
         self.pres_table.setCellWidget(row, 1, QLineEdit())
+        # placeholder for batch combo or label
         self.pres_table.setCellWidget(row, 2, QLabel(""))
-        qty = QSpinBox(); qty.setMaximum(999)
-        pr  = QDoubleSpinBox(); pr.setMinimum(0)
+
+        # qty and price
+        qty = QSpinBox()
+        qty.setMaximum(999)
         self.pres_table.setCellWidget(row, 3, qty)
+
+        pr = QDoubleSpinBox()
+        pr.setMinimum(0)
+        pr.setMaximum(9999999999999999.99)
         self.pres_table.setCellWidget(row, 4, pr)
+
+        # initialize the row’s widgets based on current source selection
         self.on_source_changed(row, src.currentText())
 
     def on_source_changed(self, row, source):
         if source == "Inventory":
             combo = QComboBox()
+            # only include medications with quantity > 0
             for m in db_manager.get_all_inventory():
-                combo.addItem(m['name'], m)
-            combo.currentTextChanged.connect(lambda n,r=row: self.load_batches(r, n))
+                if m.get('quantity', 0) > 0:
+                    combo.addItem(m['name'], m)
+            combo.currentTextChanged.connect(lambda n, r=row: self.load_batches(r, n))
             self.pres_table.setCellWidget(row, 1, combo)
+
             batch = QComboBox()
             self.pres_table.setCellWidget(row, 2, batch)
             self.load_batches(row, combo.currentText())
@@ -348,42 +388,124 @@ class AddVisitPage(QWidget):
 
     def load_batches(self, row, med_name):
         batch_combo = self.pres_table.cellWidget(row, 2)
+        price_spin  = self.pres_table.cellWidget(row, 4)
+
         batch_combo.clear()
-        for b in db_manager.get_inventory_batches(med_name):
-            batch_combo.addItem(f"{b['expiration_date']} (stock:{b['quantity']})", b)
+        # only include batches that still have stock > 0
+        batches = [
+            b for b in db_manager.get_inventory_batches(med_name)
+            if b.get('quantity', 0) > 0
+        ]
+
+        for b in batches:
+            batch_combo.addItem(
+                f"{b['expiration_date']} (stock:{b['quantity']})",
+                b
+            )
+
+        if batches:
+            # pre-fill price with the first batch’s default_sell_price
+            price_spin.setValue(batches[0].get('default_sell_price', 0.0))
+        else:
+            price_spin.setValue(0.0)
+
+        # update price whenever a different batch is selected
+        batch_combo.currentIndexChanged.connect(
+            lambda idx, r=row: self._update_price_for_row(r)
+        )
+
+
+    def _update_price_for_row(self, row):
+        batch_combo = self.pres_table.cellWidget(row, 2)
+        price_spin  = self.pres_table.cellWidget(row, 4)
+        batch = batch_combo.currentData()
+        if batch:
+            price_spin.setValue(batch.get('default_sell_price', 0.0))
+        else:
+            price_spin.setValue(0.0)
 
     def on_save_prescriptions(self):
-        for r in range(self.pres_table.rowCount()):
-            source = self.pres_table.cellWidget(r, 0).currentText()
+        row_count = self.pres_table.rowCount()
+
+        # 1) Create the visit record regardless of prescription rows
+        try:
+            self.visit_id = db_manager.add_visit(self.visit_data)
+        except Exception as e:
+            QMessageBox.critical(self, "Error Saving Visit", str(e))
+            return
+
+        # 2) If no prescriptions were added, we’re done
+        if row_count == 0:
+            QMessageBox.information(
+                self,
+                "Visit Saved",
+                "Visit has been saved (no medications added)."
+            )
+            self.reset_visit_forms()
+            return
+
+        # 3) Loop through each prescription row
+        for row in range(row_count):
+            source = self.pres_table.cellWidget(row, 0).currentText()
             is_inv = (source == "Inventory")
+
+            qty_widget   = self.pres_table.cellWidget(row, 3)
+            price_widget = self.pres_table.cellWidget(row, 4)
+            qty   = qty_widget.value()
+            price = price_widget.value()
+
             if is_inv:
-                combo = self.pres_table.cellWidget(r, 1)
-                batch = self.pres_table.cellWidget(r, 2).currentData()
-                inv_id = batch['id']
-                available = batch['quantity']
-                qty = self.pres_table.cellWidget(r, 3).value()
+                batch_combo = self.pres_table.cellWidget(row, 2)
+                batch       = batch_combo.currentData() or {}
+                inv_id      = batch.get('id')
+                available   = batch.get('quantity', 0)
+
                 if qty > available:
-                    QMessageBox.warning(self, "Stock Error",
-                                        f"{batch['name']}: {qty} > {available}")
+                    QMessageBox.warning(
+                        self,
+                        "Insufficient Stock",
+                        f"Requested {qty}, but only {available} available for batch "
+                        f"{batch.get('expiration_date','?')}."
+                    )
                     return
+
+                med_name = None
             else:
-                inv_id = None
-                qty = self.pres_table.cellWidget(r, 3).value()
-            price = self.pres_table.cellWidget(r, 4).value() or (batch.get('default_sell_price', 0) if is_inv else 0)
-            db_manager.add_prescription({
-                'visit_id':     self.visit_id,
-                'inventory_id': inv_id,
-                'med_name':     None if is_inv else self.pres_table.cellWidget(r, 1).text(),
-                'is_inventory': int(is_inv),
-                'quantity':     qty,
-                'unit_price':   price
-            })
+                med_item = self.pres_table.cellWidget(row, 1)
+                med_name = med_item.text().strip() or None
+                inv_id   = None
+
+            # insert prescription
+            try:
+                db_manager.add_prescription({
+                    'visit_id':     self.visit_id,
+                    'inventory_id': inv_id,
+                    'med_name':     med_name,
+                    'is_inventory': int(is_inv),
+                    'quantity':     qty,
+                    'unit_price':   price
+                })
+            except Exception as e:
+                QMessageBox.critical(self, "Error Saving Prescription", str(e))
+                return
+
+            # deduct stock if from inventory
             if is_inv:
                 new_qty = available - qty
-                db_manager.update_inventory_quantity(inv_id, new_qty)
+                try:
+                    db_manager.update_inventory_quantity(inv_id, new_qty)
+                except Exception as e:
+                    QMessageBox.critical(self, "Error Updating Stock", str(e))
+                    return
 
-        QMessageBox.information(self, "Done", "Prescriptions saved.")
+        # 4) All done!
+        QMessageBox.information(
+            self,
+            "Done",
+            "Visit and all prescriptions have been saved."
+        )
         self.reset_visit_forms()
+
     def set_context(self, owner: dict, pet: dict):
         """
         Called when user clicks “Add New Visit” on the history page.

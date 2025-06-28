@@ -91,6 +91,18 @@ def _initialize_database():
           FOREIGN KEY(inventory_id) REFERENCES inventory(id)
         );
         """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS purchases (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_id   INTEGER,
+      purchase_date  TEXT,
+      quantity       INTEGER,
+      unit_cost      REAL,
+      total_cost     REAL,
+      FOREIGN KEY(inventory_id) REFERENCES inventory(id)
+    );
+    """)
+
 
     conn.commit()
     conn.close()
@@ -464,16 +476,72 @@ def update_inventory_quantity(item_id: int, new_quantity: int) -> None:
     """
     conn = get_connection()
     cur  = conn.cursor()
-    if new_quantity > 0:
+    if new_quantity >= 0:
         cur.execute(
             "UPDATE inventory SET quantity = ? WHERE id = ?",
             (new_quantity, item_id)
         )
-    else:
-        cur.execute(
-            "DELETE FROM inventory WHERE id = ?",
-            (item_id,)
-        )
+
     conn.commit()
     conn.close()
+
+def get_revenue_and_cost(start_date: str, end_date: str) -> dict:
+    conn = get_connection(); cur = conn.cursor()
+    # revenue
+    cur.execute("""
+      SELECT COALESCE(SUM(p.unit_price * p.quantity),0) AS revenue
+        FROM prescriptions p
+        JOIN visits v ON p.visit_id = v.id
+       WHERE v.visit_date BETWEEN ? AND ?
+    """, (start_date, end_date))
+    rev = cur.fetchone()['revenue']
+    conn.close()
+
+    # cost from purchases
+    cost = get_total_cost(start_date, end_date)
+
+    return {'revenue': rev, 'cost': cost}
+
+
+
+def get_appointment_count(start_date: str, end_date: str) -> int:
+    """
+    Returns the number of visits whose visit_date is between start_date and end_date.
+    """
+    conn = get_connection(); cur = conn.cursor()
+    cur.execute("""
+      SELECT COUNT(*) AS cnt
+        FROM visits
+       WHERE visit_date BETWEEN ? AND ?
+    """, (start_date, end_date))
+    cnt = cur.fetchone()['cnt'] or 0
+    conn.close()
+    return cnt
+
+def add_purchase(inventory_id: int,
+                 purchase_date: str,
+                 quantity: int,
+                 unit_cost: float) -> int:
+    total = quantity * unit_cost
+    conn = get_connection(); cur = conn.cursor()
+    cur.execute("""
+      INSERT INTO purchases
+        (inventory_id, purchase_date, quantity, unit_cost, total_cost)
+      VALUES (?, ?, ?, ?, ?)
+    """, (inventory_id, purchase_date, quantity, unit_cost, total))
+    pid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return pid
+
+def get_total_cost(start_date: str, end_date: str) -> float:
+    conn = get_connection(); cur = conn.cursor()
+    cur.execute("""
+      SELECT COALESCE(SUM(total_cost),0) AS cost
+        FROM purchases
+       WHERE purchase_date BETWEEN ? AND ?
+    """, (start_date, end_date))
+    cost = cur.fetchone()['cost']
+    conn.close()
+    return cost
 

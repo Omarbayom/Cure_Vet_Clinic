@@ -13,6 +13,7 @@ from ui.inventory_list    import InventoryListPage
 from ui.add_visit         import AddVisitPage
 from ui.show_history      import ShowHistoryPage
 from ui.calendar_page     import CalendarPage
+from ui.report            import ReportPage
 
 
 
@@ -33,11 +34,12 @@ class MainApp(QMainWindow):
             on_show_history     = self.show_history_search,
             on_add_patient      = self.show_add_patient,
             on_manage_inventory = self.show_inventory_list,
-            on_show_calendar    = self.show_calendar_page
+            on_show_calendar    = self.show_calendar_page,
+            on_show_report      = self.show_report_page
         )
 
 
-
+        self.report_page      = ReportPage(on_back=self.show_dashboard)
 
         self.calendar_page = CalendarPage(
             on_back=self.show_dashboard,
@@ -71,7 +73,8 @@ class MainApp(QMainWindow):
             self.add_inventory,
             self.add_visit,
             self.show_history_page,
-            self.calendar_page
+            self.calendar_page,
+            self.report_page
         ):
             self.stack.addWidget(w)
 
@@ -190,6 +193,10 @@ class MainApp(QMainWindow):
         self.calendar_page._load_appointments()
         # show it
         self.stack.setCurrentWidget(self.calendar_page)
+    
+    def show_report_page(self):
+        self.stack.setCurrentWidget(self.report_page)
+
 
 
     

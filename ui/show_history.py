@@ -198,7 +198,7 @@ class ShowHistoryPage(QWidget):
 
         visits = db_manager.get_visits_by_pet(self.selected_pet['id'])
         for v in visits:
-            wi = QListWidgetItem(f"{v['visit_date']}: {v['notes'][:40]}…")
+            wi = QListWidgetItem(f"{v['visit_date']}: {v['doctor_name']}…")
             wi.data = v
             self.history_list.addItem(wi)
 
