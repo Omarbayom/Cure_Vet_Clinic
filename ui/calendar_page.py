@@ -128,7 +128,7 @@ class CalendarPage(QWidget):
         side.addWidget(QLabel("Appointments on Selected Date:"))
         self.list_widget = QListWidget()
         self.list_widget.setFont(QFont("Segoe UI",16))
-        self.list_widget.itemClicked.connect(self._on_appointment_clicked)
+        self.list_widget.itemDoubleClicked.connect(self._on_appointment_clicked)
         side.addWidget(self.list_widget, 1)
 
         content.addWidget(panel, 1)
