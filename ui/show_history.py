@@ -2,12 +2,13 @@
 
 import sys
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QListWidget, QListWidgetItem, QTextEdit, QMessageBox, QToolButton,
+    QWidget, QStackedLayout, QListWidget, QListWidgetItem, QTextEdit,
+    QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QToolButton,
     QFrame, QSizePolicy, QGraphicsDropShadowEffect, QApplication
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt
+
 
 import db_manager
 
@@ -39,118 +40,166 @@ class ShowHistoryPage(QWidget):
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
 
-        # ── Back Arrow ──
-        top = QHBoxLayout()
-        top.setContentsMargins(10, 10, 10, 5)
+        # ── Header with Back & Title ──
+        hdr = QHBoxLayout()
+        hdr.setContentsMargins(10, 10, 10, 5)
         back = QToolButton()
         back.setText("←")
         back.setFont(QFont("Segoe UI", 20))
         back.setCursor(Qt.PointingHandCursor)
         back.setStyleSheet(
-            "QToolButton { color:white; background:transparent; border:none; }"
-            "QToolButton:hover { color:#e0e0e0; }"
+            "QToolButton{color:white;background:transparent;border:none;}"
+            "QToolButton:hover{color:#e0e0e0;}"
         )
         back.clicked.connect(self.on_back)
-        top.addWidget(back, Qt.AlignLeft)
-        top.addStretch()
-        main.addLayout(top)
+        hdr.addWidget(back, Qt.AlignLeft)
 
-        # ── Header ──
-        hdr = QHBoxLayout()
-        hdr.setContentsMargins(20, 0, 20, 15)
-        plus = QLabel("📋")
-        plus.setFont(QFont("Segoe UI", 26))
-        plus.setStyleSheet("color:white; background:transparent;")
-        title = QLabel("Patient History")
+        title = QLabel("📋 Patient History")
         title.setFont(QFont("Segoe UI", 26, QFont.Bold))
         title.setStyleSheet("color:white; background:transparent;")
-        hdr.addWidget(plus)
-        hdr.addWidget(title)
+        hdr.addWidget(title, Qt.AlignLeft)
         hdr.addStretch()
         main.addLayout(hdr)
 
-        # ── Content Panel ──
+        # ── Panel with Shadow ──
         panel = QFrame()
         panel.setStyleSheet("QFrame{background:#e0e0e0; border-radius:8px;}")
         shadow = QGraphicsDropShadowEffect(panel)
-        shadow.setBlurRadius(15)
-        shadow.setOffset(0,3)
-        shadow.setColor(QColor(0,0,0,60))
+        shadow.setBlurRadius(12); shadow.setOffset(0,2); shadow.setColor(QColor(0,0,0,60))
         panel.setGraphicsEffect(shadow)
         panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        content = QVBoxLayout(panel)
-        content.setContentsMargins(20,20,20,20)
-        content.setSpacing(12)
+        container = QVBoxLayout(panel)
+        container.setContentsMargins(20,20,20,20)
+        container.setSpacing(10)
 
-        # helper to style inputs & lists
+        # ── Helpers ──
         def mk_lineedit(w):
-            w.setFont(QFont("Segoe UI", 18))
+            w.setFont(QFont("Segoe UI",18))
             w.setStyleSheet(
-                "background:white; border:1px solid #ccc; "
-                "border-radius:4px; padding:6px 10px; min-height:36px;"
+                "background:white; border:1px solid #ccc;"
+                " border-radius:4px; padding:6px 10px;"
             )
             w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             return w
 
         def mk_list(w):
-            w.setFont(QFont("Segoe UI", 18))
+            w.setFont(QFont("Segoe UI",18))
             w.setStyleSheet(
-                "background:white; border:1px solid #ccc; "
-                "border-radius:4px;"
+                "background:white; border:1px solid #ccc; border-radius:4px;"
             )
             w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             return w
 
-        # – Owner Search –
-        self.search_input = mk_lineedit(QLineEdit())
-        self.search_input.setPlaceholderText("Search owner by name or phone…")
-        self.search_input.textChanged.connect(self.on_search_owner)
-        content.addWidget(self.search_input)
+        # ── Stacked Pages ──
+        self.stack = QStackedLayout()
 
-        content.addWidget(QLabel("Owners:"))
+        # Page 0: Owner/Pet/Visit List
+        page0 = QWidget()
+        p0 = QVBoxLayout(page0)
+        p0.setSpacing(12)
+
+        p0.addWidget(QLabel("Search Owner:"))
+        self.search_input = mk_lineedit(QLineEdit())
+        self.search_input.setPlaceholderText("Name or phone…")
+        self.search_input.textChanged.connect(self.on_search_owner)
+        p0.addWidget(self.search_input)
+
+        p0.addWidget(QLabel("Owners:"))
         self.owner_list = mk_list(QListWidget())
         self.owner_list.itemClicked.connect(self.on_owner_selected)
-        content.addWidget(self.owner_list, stretch=1)
+        p0.addWidget(self.owner_list, 1)
 
-        # – Pet Selection –
-        content.addWidget(QLabel("Pets:"))
+        p0.addWidget(QLabel("Pets:"))
         self.pet_list = mk_list(QListWidget())
         self.pet_list.itemClicked.connect(self.on_pet_selected)
-        content.addWidget(self.pet_list, stretch=1)
+        p0.addWidget(self.pet_list, 1)
 
-        # – Visit List –
-        content.addWidget(QLabel("Visits:"))
+        p0.addWidget(QLabel("Visits:"))
         self.history_list = mk_list(QListWidget())
         self.history_list.itemClicked.connect(self.on_history_selected)
-        content.addWidget(self.history_list, stretch=1)
+        p0.addWidget(self.history_list, 1)
 
-        # – Details Pane –
-        content.addWidget(QLabel("Details:"))
+        nav0 = QHBoxLayout()
+        nav0.addStretch()
+        self.next_btn = QPushButton("Next: Details")
+        self.next_btn.setFont(QFont("Segoe UI",18))
+        self.next_btn.setCursor(Qt.PointingHandCursor)
+        self.next_btn.setEnabled(False)
+        self.next_btn.clicked.connect(lambda: self.stack.setCurrentIndex(1))
+        nav0.addWidget(self.next_btn)
+        p0.addLayout(nav0)
+
+        self.stack.addWidget(page0)
+
+        # ── Page 1: Visit Details ──
+        page1 = QWidget()
+        p1 = QVBoxLayout(page1)
+        p1.setSpacing(12)
+
+        hdr1 = QHBoxLayout()
+        hdr1.setContentsMargins(10,10,10,5)
+        back1 = QToolButton()
+        back1.setText("← Back")
+        back1.setFont(QFont("Segoe UI",20))
+        back1.setCursor(Qt.PointingHandCursor)
+        back1.setStyleSheet(
+            "QToolButton{color:#333333; background:transparent; border:none;}"
+            "QToolButton:hover{color:black;}"
+        )
+        back1.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        hdr1.addWidget(back1, Qt.AlignLeft)
+        hdr1.addStretch()
+        p1.addLayout(hdr1)
+
+
+
+        # styled content frame for details
+        details_panel = QFrame()
+        details_panel.setStyleSheet("QFrame{background:white; border-radius:8px;}")
+        shadow2 = QGraphicsDropShadowEffect(details_panel)
+        shadow2.setBlurRadius(15); shadow2.setOffset(0,3); shadow2.setColor(QColor(0,0,0,60))
+        details_panel.setGraphicsEffect(shadow2)
+        details_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        details_container = QVBoxLayout(details_panel)
+        details_container.setContentsMargins(20,20,20,20)
+        details_container.setSpacing(10)
+
+        lbl = QLabel("Visit Details")
+        lbl.setFont(QFont("Segoe UI",20,QFont.Bold))
+        details_container.addWidget(lbl)
+
         self.details = QTextEdit()
-        self.details.setFont(QFont("Segoe UI", 16))
-        self.details.setStyleSheet("background:white; border:1px solid #ccc;")
+        self.details.setFont(QFont("Segoe UI",16))
+        self.details.setStyleSheet(
+            "background: #fafafa; border:1px solid #ddd; border-radius:4px;"
+            " padding:8px;"
+        )
         self.details.setReadOnly(True)
-        content.addWidget(self.details, stretch=2)
+        details_container.addWidget(self.details, 1)
 
-        # – Action Buttons –
-        btns = QHBoxLayout()
-        btns.addStretch()
+        p1.addWidget(details_panel)
+
+        # bottom nav
+        nav1 = QHBoxLayout()
+        nav1.addStretch()
         self.new_visit_btn = QPushButton("➕ Add New Visit")
-        self.new_visit_btn.setFont(QFont("Segoe UI", 18))
+        self.new_visit_btn.setFont(QFont("Segoe UI",16))
         self.new_visit_btn.setCursor(Qt.PointingHandCursor)
         self.new_visit_btn.setEnabled(False)
-        self.new_visit_btn.setStyleSheet(
-            "QPushButton{ background:#009999; color:white; border-radius:6px; "
-            "padding:10px 20px; }"
-            "QPushButton:hover{ background:#008080; }"
-        )
         self.new_visit_btn.clicked.connect(self._on_add_new_visit)
-        btns.addWidget(self.new_visit_btn)
-        content.addLayout(btns)
+        nav1.addWidget(self.new_visit_btn)
+        p1.addLayout(nav1)
 
+        self.stack.addWidget(page1)
+
+        # ── Assemble ──
+        container.addLayout(self.stack)
         main.addWidget(panel)
 
+
+    
     # ─── Handlers (from original) ───────────────────────────────────────────── :contentReference[oaicite:0]{index=0}
 
     def on_search_owner(self, text):
@@ -198,7 +247,7 @@ class ShowHistoryPage(QWidget):
 
         visits = db_manager.get_visits_by_pet(self.selected_pet['id'])
         for v in visits:
-            wi = QListWidgetItem(f"{v['visit_date']}: {v['doctor_name']}…")
+            wi = QListWidgetItem(f"{v['visit_date']}:  Dr.{v['doctor_name']}…")
             wi.data = v
             self.history_list.addItem(wi)
 
@@ -206,28 +255,45 @@ class ShowHistoryPage(QWidget):
 
     def on_history_selected(self, item):
         v = item.data
+        # 1) Clear previous contents
         self.details.clear()
+
+        # 2) Basic visit info
         self.details.append(f"<b>Date:</b> {v['visit_date']}")
         self.details.append(f"<b>Doctor:</b> {v.get('doctor_name','—')}")
-        self.details.append(f"<b>Next Appt:</b> {v['next_appointment']}")
         self.details.append(f"<b>Notes:</b>\n{v['notes']}")
 
+        # 3) Dispensed items
         prescs = db_manager.get_prescriptions_by_visit(v['id'])
         if prescs:
             self.details.append("\n<b>Dispensed:</b>")
             for p in prescs:
-                src  = "Inventory" if p['is_inventory'] else "Pharmacy"
-                name = p['item_name'] if p['is_inventory'] else p['med_name']
-                qty  = p['quantity']
-                # pick unit_price first if set, otherwise default_sell_price, else 0.0
+                src   = "Inventory" if p['is_inventory'] else "Pharmacy"
+                name  = p['item_name'] if p['is_inventory'] else p['med_name']
+                qty   = p['quantity']
                 price = (
                     p['unit_price']
                     if p['unit_price'] is not None
                     else (p.get('default_sell_price') or 0.0)
                 )
-                self.details.append(f" • [{src}] {name}: {qty} ")
+                self.details.append(f" • [{src}] {name}: {qty} @ {price}")
         else:
             self.details.append("\nNo items dispensed.")
+
+        # 4) Future appointments
+        apps = db_manager.get_future_appointments_by_visit(v['id'])
+        if apps:
+            self.details.append("\n<b>Future Appointments:</b>")
+            for a in apps:
+                date   = a['appointment_date']
+                reason = a['reason'] or '—'
+                self.details.append(f" • {date} — {reason}")
+
+        # 5) Enable navigation buttons (no automatic page switch)
+        self.next_btn.setEnabled(True)
+        self.new_visit_btn.setEnabled(True)
+
+
 
 
     def _on_add_new_visit(self):

@@ -153,74 +153,82 @@ class AddVisitPage(QWidget):
         self.notes.setStyleSheet("background:white; border:1px solid #ccc;")
         p1.addWidget(self.notes, stretch=1)
 
-        p1.addWidget(QLabel("Next Appointment:"))
-        self.next_date = QDateEdit(calendarPopup=True)
-        self.next_date.setFont(QFont("Segoe UI",18))
-        self.next_date.setDate(QDate.currentDate())
-        # style the date edit dropdown & scrollbars
-        self.next_date.setStyleSheet("""
-            QDateEdit {
-              background:white; border:1px solid #ccc;
-              border-radius:4px; padding:6px 10px;
-            }
-            QDateEdit::drop-down { border:none; }
-            QCalendarWidget QToolButton {
-              background: #00CED1; color:white; border:none;
-            }
-        """)
-        p1.addWidget(self.next_date)
 
+        # Page 1: Visit Details (goes next to Appointments)
         nav1 = QHBoxLayout()
         back1 = QPushButton("← Back"); back1.setStyleSheet(btn_style)
         back1.clicked.connect(lambda: self._goto(0))
-        next1 = QPushButton("Next: Prescriptions"); next1.setStyleSheet(btn_style)
+        next1 = QPushButton("Next: Appointments"); next1.setStyleSheet(btn_style)
         next1.clicked.connect(self._save_visit_and_next)
         nav1.addWidget(back1); nav1.addStretch(); nav1.addWidget(next1)
         p1.addLayout(nav1)
         self.stack.addWidget(page1)
 
-        # Page 2: Prescriptions
+        # Page 2: Future Appointments (optional)
         page2 = QWidget()
         p2 = QVBoxLayout(page2); p2.setSpacing(8)
-        p2.addWidget(QLabel("Prescriptions:"))
+        p2.addWidget(QLabel("Future Appointments (optional):"))
+        self.app_table = QTableWidget(0, 2)
+        self.app_table.setFont(QFont("Segoe UI",18))
+        self.app_table.setHorizontalHeaderLabels(["Date", "Reason"])
+        p2.addWidget(self.app_table, stretch=1)
+
+        add_app = QPushButton("➕ Add Date/Reason"); add_app.setStyleSheet(btn_style)
+        add_app.clicked.connect(self.on_add_app_row)
+        p2.addWidget(add_app, alignment=Qt.AlignLeft)
+
+        nav2 = QHBoxLayout()
+        back2 = QPushButton("← Back"); back2.setStyleSheet(btn_style)
+        back2.clicked.connect(lambda: self._goto(1))
+        next2 = QPushButton("Next: Prescriptions"); next2.setStyleSheet(btn_style)
+        next2.clicked.connect(self._save_apps_and_next)
+        nav2.addWidget(back2); nav2.addStretch(); nav2.addWidget(next2)
+        p2.addLayout(nav2)
+        self.stack.addWidget(page2)
+
+        # Page 3: Prescriptions
+        page3 = QWidget()
+        p3 = QVBoxLayout(page3); p3.setSpacing(8)
+        p3.addWidget(QLabel("Prescriptions:"))
         self.pres_table = QTableWidget(0,5)
         self.pres_table.setFont(QFont("Segoe UI",18))
         self.pres_table.setHorizontalHeaderLabels(
             ["Source","Medicine","Batch","Qty","Unit Price"]
         )
-        p2.addWidget(self.pres_table, stretch=1)
-
-        nav2 = QHBoxLayout()
-        back2 = QPushButton("← Back"); back2.setStyleSheet(btn_style)
-        back2.clicked.connect(self._confirm_leave_prescriptions)
-        add2 = QPushButton("Add Medicine"); add2.setStyleSheet(btn_style)
-        add2.clicked.connect(self.on_add_pres_row)
-        save2 = QPushButton("Save All"); save2.setStyleSheet(btn_style)
-        save2.clicked.connect(self.on_save_prescriptions)
-        self.save_pres_btn = save2
-        nav2.addWidget(back2); nav2.addStretch()
-        nav2.addWidget(add2); nav2.addWidget(save2)
-        p2.addLayout(nav2)
-        self.stack.addWidget(page2)
-
-        # Page 3: History Detail
-        page3 = QWidget()
-        p3 = QVBoxLayout(page3); p3.setSpacing(8)
-        p3.addWidget(QLabel("Visit Details"))
-        self.detail_text = QTextEdit(); self.detail_text.setReadOnly(True)
-        self.detail_text.setFont(QFont("Segoe UI",16))
-        self.detail_text.setStyleSheet("background:white; border:1px solid #ccc;")
-        p3.addWidget(self.detail_text, stretch=1)
+        p3.addWidget(self.pres_table, stretch=1)
 
         nav3 = QHBoxLayout()
-        back3 = QPushButton("← Back to History"); back3.setStyleSheet(btn_style)
-        back3.clicked.connect(lambda: self._goto(0))
-        nv3 = QPushButton("➕ Add New Visit"); nv3.setStyleSheet(btn_style)
-        nv3.clicked.connect(lambda: self._goto(1))
-        nav3.addWidget(back3); nav3.addStretch(); nav3.addWidget(nv3)
+        back3 = QPushButton("← Back"); back3.setStyleSheet(btn_style)
+        back3.clicked.connect(self._confirm_leave_prescriptions)
+        add3 = QPushButton("Add Medicine"); add3.setStyleSheet(btn_style)
+        add3.clicked.connect(self.on_add_pres_row)
+        save3 = QPushButton("Save All"); save3.setStyleSheet(btn_style)
+        save3.clicked.connect(self.on_save_prescriptions)
+        self.save_pres_btn = save3
+        nav3.addWidget(back3); nav3.addStretch()
+        nav3.addWidget(add3); nav3.addWidget(save3)
         p3.addLayout(nav3)
         self.stack.addWidget(page3)
 
+        # Page 4: History Detail
+        page4 = QWidget()
+        p4 = QVBoxLayout(page4); p4.setSpacing(8)
+        p4.addWidget(QLabel("Visit Details"))
+        self.detail_text = QTextEdit(); self.detail_text.setReadOnly(True)
+        self.detail_text.setFont(QFont("Segoe UI",16))
+        self.detail_text.setStyleSheet("background:white; border:1px solid #ccc;")
+        p4.addWidget(self.detail_text, stretch=1)
+
+        nav4 = QHBoxLayout()
+        back4 = QPushButton("← Back to History"); back4.setStyleSheet(btn_style)
+        back4.clicked.connect(lambda: self._goto(0))
+        nv4 = QPushButton("➕ Add New Visit"); nv4.setStyleSheet(btn_style)
+        nv4.clicked.connect(lambda: self._goto(1))
+        nav4.addWidget(back4); nav4.addStretch(); nav4.addWidget(nv4)
+        p4.addLayout(nav4)
+        self.stack.addWidget(page4)
+
+        # finish layout
         container.addLayout(self.stack)
         main.addWidget(panel)
 
@@ -228,19 +236,26 @@ class AddVisitPage(QWidget):
         self.selected_owner = None
         self.selected_pet   = None
         self.visit_id       = None
-        # Page 0
+
+        # Page 0: clear search/history
         self.search_input.clear()
         self.owner_list.clear()
         self.pet_list.clear()
         self.history_list.clear()
-        # Page 1
+
+        # Page 1: clear doctor & notes
         self.dr_name.clear()
         self.notes.clear()
-        self.next_date.setDate(QDate.currentDate())
-        # Page 2
+
+        # Page 2: clear future‐appointments table
+        self.app_table.setRowCount(0)
+
+        # Page 3: clear prescriptions table
         self.pres_table.setRowCount(0)
         self.pres_table.setEnabled(False)
         self.save_pres_btn.setEnabled(False)
+
+        # back to start
         self._goto(0)
 
     def _goto(self, idx: int):
@@ -255,7 +270,6 @@ class AddVisitPage(QWidget):
             'pet_id':           self.selected_pet['id'],
             'visit_date':       QDate.currentDate().toString("yyyy-MM-dd"),
             'notes':            self.notes.toPlainText(),
-            'next_appointment': self.next_date.date().toString("yyyy-MM-dd"),
             'doctor_name':      self.dr_name.text().strip()
         }
         self.pres_table.setEnabled(True)
@@ -282,20 +296,30 @@ class AddVisitPage(QWidget):
 
     def _show_history_detail(self, item):
         v = item.data
+        # base visit info
         txt = (f"Date: {v['visit_date']}\n"
-               f"Doctor: {v.get('doctor_name','—')}\n"
-               f"Next Appt: {v['next_appointment']}\n\n"
+               f"Doctor: {v.get('doctor_name','—')}\n\n"
                f"{v['notes']}\n\nDispensed:\n")
+        # prescriptions
         prescs = db_manager.get_prescriptions_by_visit(v['id'])
         if prescs:
             for p in prescs:
-                src = "Inventory" if p['is_inventory'] else "Pharmacy"
+                src  = "Inventory" if p['is_inventory'] else "Pharmacy"
                 name = p['item_name'] if p['is_inventory'] else p['med_name']
                 txt += f" • [{src}] {name}: {p['quantity']}\n"
         else:
-            txt += "None"
+            txt += "None\n"
+
+        # — now load future appointments —
+        apps = db_manager.get_future_appointments_by_visit(v['id'])
+        if apps:
+            txt += "\nFuture Appointments:\n"
+            for a in apps:
+                txt += f" • {a['appointment_date']} — {a['reason'] or '—'}\n"
+
         self.detail_text.setPlainText(txt)
-        self._goto(3)
+        self._goto(4)
+
 
     def on_search_owner(self, text):
         term = text.strip()
@@ -434,6 +458,15 @@ class AddVisitPage(QWidget):
             QMessageBox.critical(self, "Error Saving Visit", str(e))
             return
 
+        # 1a) Save all Future Appointments
+        for app in self.visit_data.get('future_appointments', []):
+            date   = app['date']
+            reason = app['reason']
+            # ensure reason exists (adds if new)
+            rid = db_manager.add_reason(reason) if reason else None
+            db_manager.add_future_appointment(self.visit_id, date, rid)
+
+
         # 2) If no prescriptions were added, we’re done
         if row_count == 0:
             QMessageBox.information(
@@ -548,3 +581,62 @@ class AddVisitPage(QWidget):
         # 6. move to page 1 (Visit Details) so they can start entering data
         self._goto(1)
 
+    def on_add_app_row(self):
+        """Insert a new row for date+reason."""
+        row = self.app_table.rowCount()
+        self.app_table.insertRow(row)
+
+        # create a date edit with a styled popup calendar
+        date_edit = QDateEdit(calendarPopup=True)
+        date_edit.setDisplayFormat("yyyy-MM-dd")
+
+        # create & configure the popup calendar
+        from PyQt5.QtWidgets import QCalendarWidget
+        cal = QCalendarWidget(self)
+        cal.setNavigationBarVisible(True)
+        cal.setMinimumSize(360, 300)
+        cal.setFont(QFont("Segoe UI", 14))
+        cal.setStyleSheet("""
+            /* overall font size */
+            QCalendarWidget { font-size: 14pt; }
+            /* nav‐bar background */
+            QCalendarWidget QWidget#qt_calendar_navigationbar {
+                background: white; height: 40px;
+            }
+            /* arrows & month/year text */
+            QCalendarWidget QToolButton {
+                color: black; background: transparent; border: none; font-size: 14pt;
+            }
+            /* month/year dropdown */
+            QCalendarWidget QComboBox {
+                color: black; background: white; font-size: 14pt;
+            }
+        """)
+
+        # wire it up
+        date_edit.setCalendarWidget(cal)
+        date_edit.setDate(QDate.currentDate())
+        self.app_table.setCellWidget(row, 0, date_edit)
+
+        reason_cb = QComboBox()
+        reason_cb.setEditable(True)
+        reason_cb.addItems(db_manager.get_all_reasons())
+        self.app_table.setCellWidget(row, 1, reason_cb)
+
+    def _save_apps_and_next(self):
+        """
+        Collect the future-appointments table into visit_data,
+        persist any new reasons, then advance to Prescriptions.
+        """
+        apps = []
+        for r in range(self.app_table.rowCount()):
+            date = self.app_table.cellWidget(r, 0).date().toString("yyyy-MM-dd")
+            cb   = self.app_table.cellWidget(r, 1)
+            reason = cb.currentText().strip()
+            if reason and reason not in db_manager.get_all_reasons():
+                db_manager.add_reason(reason)
+            apps.append({'date': date, 'reason': reason})
+
+        # attach to visit_data for later saving
+        self.visit_data['future_appointments'] = apps
+        self._goto(3)

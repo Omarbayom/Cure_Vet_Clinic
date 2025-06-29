@@ -76,7 +76,7 @@ class AddInventoryPage(QWidget):
         form.setVerticalSpacing(18)
 
         def mk(widget):
-            widget.setFont(QFont("Segoe UI",18))
+            widget.setFont(QFont("Segoe UI",20))
             widget.setStyleSheet("""
                 background: white;
                 border: 1px solid #ccc;
@@ -89,7 +89,7 @@ class AddInventoryPage(QWidget):
 
         def lbl(text):
             l = QLabel(text)
-            l.setFont(QFont("Segoe UI",18))
+            l.setFont(QFont("Segoe UI",20))
             l.setStyleSheet("color:#333;")
             return l
 
@@ -106,17 +106,44 @@ class AddInventoryPage(QWidget):
         self.pur_price_input  = mk(QDoubleSpinBox()); self.pur_price_input.setRange(0,1e6)
 
         # configure date widgets
+        # configure date widgets
         for date_widget in (self.exp_input, self.pur_date_input):
             date_widget.setCalendarPopup(True)
             date_widget.setDisplayFormat("dd MMMM yyyy")
+
+            # create and enlarge the calendar popup
             cal = QCalendarWidget(self)
             cal.setNavigationBarVisible(True)
+            cal.setMinimumSize(360, 300)
+            cal.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            cal.setFont(QFont("Segoe UI", 14))
+
+            # dark text + larger fonts in nav‐bar
             cal.setStyleSheet("""
-                QCalendarWidget QWidget#qt_calendar_navigationbar { background: white; }
-                QCalendarWidget QToolButton { color: black; background: transparent; border: none; }
-                QCalendarWidget QComboBox { color: black; background: white; }
+                /* overall font-size */
+                QCalendarWidget {
+                    font-size: 14pt;
+                }
+                /* nav‐bar */
+                QCalendarWidget QWidget#qt_calendar_navigationbar {
+                    background: white;
+                    height: 40px;
+                }
+                QCalendarWidget QToolButton {
+                    color: black;
+                    background: transparent;
+                    border: none;
+                    font-size: 14pt;
+                }
+                QCalendarWidget QComboBox {
+                    color: black;
+                    background: white;
+                    font-size: 14pt;
+                }
             """)
+
             date_widget.setCalendarWidget(cal)
+            # initialize to today
             today = QDate.currentDate()
             date_widget.setDate(today)
             cal.setSelectedDate(today)

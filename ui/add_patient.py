@@ -142,26 +142,41 @@ class AddPatientPage(QWidget):
         cal = QCalendarWidget(self)
         cal.setNavigationBarVisible(True)
 
-        # ── Force the nav‐bar text & combo to be dark ──
+        # make the whole calendar bigger
+        cal.setMinimumSize(360, 300)
+        cal.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # bump up the font so day‐numbers and headers are larger
+        cal.setFont(QFont("Segoe UI", 14))
+
+        # ── Force the nav‐bar text & combo to be dark and larger ──
         cal.setStyleSheet("""
+            /* overall font-size for the calendar view */
+            QCalendarWidget {
+                font-size: 14pt;
+            }
             /* navigation bar background */
             QCalendarWidget QWidget#qt_calendar_navigationbar {
                 background: white;
+                height: 40px;
             }
             /* prev/next arrows and month/year text */
             QCalendarWidget QToolButton {
                 color: black;
                 background: transparent;
                 border: none;
+                font-size: 14pt;
             }
             /* the month/year drop-down */
             QCalendarWidget QComboBox {
                 color: black;
                 background: white;
+                font-size: 14pt;
             }
         """)
 
         self.first_visit.setCalendarWidget(cal)
+
 
         # sync today’s date so month/year header is drawn immediately
         today = QDate.currentDate()

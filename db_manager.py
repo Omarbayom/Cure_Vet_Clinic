@@ -67,15 +67,14 @@ def _initialize_database():
     # ── Visits ──
     cur.execute("""
         CREATE TABLE IF NOT EXISTS visits (
-          id                INTEGER PRIMARY KEY AUTOINCREMENT,
-          pet_id            INTEGER,
-          visit_date        TEXT,
-          notes             TEXT,
-          next_appointment  TEXT,
-          doctor_name       TEXT,
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          pet_id       INTEGER,
+          visit_date   TEXT,
+          notes        TEXT,
+          doctor_name  TEXT,
           FOREIGN KEY(pet_id) REFERENCES pets(id)
         );
-        """)
+    """)
 
         # prescriptions table: now supports external meds
     cur.execute("""
@@ -102,7 +101,25 @@ def _initialize_database():
       FOREIGN KEY(inventory_id) REFERENCES inventory(id)
     );
     """)
+    # ── Future‐Appointment Reasons ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reasons (
+          id   INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE
+        );
+    """)
 
+    # ── Future Appointments (per Visit) ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS future_appointments (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          visit_id          INTEGER NOT NULL,
+          appointment_date  TEXT    NOT NULL,
+          reason_id         INTEGER,
+          FOREIGN KEY(visit_id) REFERENCES visits(id),
+          FOREIGN KEY(reason_id) REFERENCES reasons(id)
+        );
+    """)
 
     conn.commit()
     conn.close()
@@ -354,7 +371,7 @@ def get_visits_by_pet(pet_id: int) -> list[dict]:
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-      SELECT id, visit_date, notes, next_appointment, doctor_name
+      SELECT id, visit_date, notes, doctor_name
         FROM visits
        WHERE pet_id = ?
        ORDER BY visit_date DESC
@@ -362,6 +379,7 @@ def get_visits_by_pet(pet_id: int) -> list[dict]:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
+
 
 
 def add_visit(data: dict) -> int:
@@ -373,13 +391,12 @@ def add_visit(data: dict) -> int:
     cur = conn.cursor()
     cur.execute("""
       INSERT INTO visits
-        (pet_id, visit_date, notes, next_appointment, doctor_name)
-      VALUES (?, ?, ?, ?, ?)
+        (pet_id, visit_date, notes, doctor_name)
+      VALUES (?, ?, ?, ?)
     """, (
       data['pet_id'],
       data['visit_date'],
       data['notes'],
-      data['next_appointment'],
       data['doctor_name']
     ))
     vid = cur.lastrowid
@@ -545,3 +562,60 @@ def get_total_cost(start_date: str, end_date: str) -> float:
     conn.close()
     return cost
 
+def get_all_reasons() -> list[str]:
+    """
+    Return a list of all saved future‐appointment reasons, ordered alphabetically.
+    """
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("SELECT name FROM reasons ORDER BY name")
+    rows = [r["name"] for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def add_reason(reason: str) -> int:
+    """
+    Insert a new reason (if not already present) and return its ID.
+    """
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("INSERT OR IGNORE INTO reasons (name) VALUES (?)", (reason,))
+    conn.commit()
+    # fetch the id back
+    cur.execute("SELECT id FROM reasons WHERE name = ?", (reason,))
+    rid = cur.fetchone()["id"]
+    conn.close()
+    return rid
+
+def add_future_appointment(visit_id: int, appointment_date: str, reason_id: int) -> int:
+    """
+    Insert one future‐appointment row linking to a visit and a reason.
+    Returns the new future_appointments.id.
+    """
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute(
+        "INSERT INTO future_appointments (visit_id, appointment_date, reason_id) VALUES (?,?,?)",
+        (visit_id, appointment_date, reason_id)
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+def get_future_appointments_by_visit(visit_id: int) -> list[dict]:
+    """
+    Fetch all future appointments (date + reason) for a given visit.
+    """
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+      SELECT fa.appointment_date, r.name AS reason
+        FROM future_appointments fa
+        LEFT JOIN reasons r ON fa.reason_id = r.id
+       WHERE fa.visit_id = ?
+       ORDER BY fa.appointment_date
+    """, (visit_id,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows

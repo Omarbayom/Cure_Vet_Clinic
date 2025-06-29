@@ -28,15 +28,13 @@ class AppointmentCalendar(QCalendarWidget):
         ds = date.toString("yyyy-MM-dd")
         if ds in self.apps_by_date:
             painter.save()
-            font = QFont()
-            font.setBold(True)
-            painter.setFont(font)
-            painter.setPen(QColor("#ffcc00"))
-            painter.drawText(
-                rect.x() + rect.width() - 12,
-                rect.y() + 12,
-                "★"
-            )
+            # draw a filled circle in the top-right corner
+            painter.setBrush(QColor("#FF5722"))      # orange-red fill
+            painter.setPen(Qt.NoPen)                 # no border
+            radius = 6
+            cx = rect.right() - radius - 2
+            cy = rect.top() + radius + 2
+            painter.drawEllipse(cx - radius, cy - radius, radius*2, radius*2)
             painter.restore()
 
 
@@ -64,28 +62,32 @@ class CalendarPage(QWidget):
         super().paintEvent(event)
 
     def _load_appointments(self):
+        """
+        Load all future appointments from the new table, grouped by date.
+        """
         self.apps_by_date = {}
         today = QDate.currentDate().toString("yyyy-MM-dd")
         conn = db_manager.get_connection()
         cur = conn.cursor()
         cur.execute("""
           SELECT
-            v.id           AS visit_id,
-            v.next_appointment,
-            p.id           AS pet_id,
+            v.id                  AS visit_id,
+            fa.appointment_date   AS next_appointment,
+            p.id                  AS pet_id,
             p.pet_name,
             p.species_id,
-            s.name         AS species,
-            o.id           AS owner_id,
-            o.name         AS owner_name,
+            s.name                AS species,
+            o.id                  AS owner_id,
+            o.name                AS owner_name,
             o.phone,
             v.doctor_name
-          FROM visits v
-          JOIN pets     p ON v.pet_id = p.id
-          JOIN species  s ON p.species_id = s.id
-          JOIN owners   o ON p.owner_id  = o.id
-          WHERE v.next_appointment >= ?
-          ORDER BY v.next_appointment
+          FROM future_appointments fa
+          JOIN visits          v  ON fa.visit_id = v.id
+          JOIN pets            p  ON v.pet_id     = p.id
+          JOIN species         s  ON p.species_id = s.id
+          JOIN owners          o  ON p.owner_id   = o.id
+          WHERE fa.appointment_date >= ?
+          ORDER BY fa.appointment_date
         """, (today,))
         for r in cur.fetchall():
             d = dict(r)
@@ -114,8 +116,9 @@ class CalendarPage(QWidget):
         main.addLayout(hdr_layout)
 
         content = QHBoxLayout()
-        cal = AppointmentCalendar(self.apps_by_date)
-        content.addWidget(cal, 2)
+        self.cal = AppointmentCalendar(self.apps_by_date)
+        self.cal.setFont(QFont("Segoe UI", 18))
+        content.addWidget(self.cal, 2)
 
         panel = QFrame()
         panel.setStyleSheet("background:#e0e0e0; border-radius:8px;")
@@ -132,18 +135,31 @@ class CalendarPage(QWidget):
 
         side.addWidget(QLabel("Appointments on Selected Date:"))
         self.list_widget = QListWidget()
-        self.list_widget.setFont(QFont("Segoe UI", 16))
+        self.list_widget.setFont(QFont("Segoe UI", 18))
         self.list_widget.itemDoubleClicked.connect(self._on_appointment_clicked)
         side.addWidget(self.list_widget, 1)
 
         remind_btn = QPushButton("🔔 Send Reminders")
-        remind_btn.setFont(QFont("Segoe UI", 14))
+        remind_btn.setFont(QFont("Segoe UI", 16))
         remind_btn.setCursor(Qt.PointingHandCursor)
         remind_btn.clicked.connect(self.on_send_reminders)
         side.addWidget(remind_btn)
 
         content.addWidget(panel, 1)
         main.addLayout(content)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # 1) reload fresh data
+        self._load_appointments()
+        # 2) update the calendar’s appointment map
+        self.cal.apps_by_date = self.apps_by_date
+        # 3) force redraw of all cells (stars)
+        self.cal.updateCells()
+        # 4) refresh the side‐list for whatever date is currently selected
+        self.on_date_selected(self.cal.selectedDate())
+
+
 
     def on_date_selected(self, date: QDate):
         date_str = date.toString("yyyy-MM-dd")
