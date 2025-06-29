@@ -136,6 +136,7 @@ def send_reminders(appointments: list, mode: str = "auto", delay: float = 2.0) -
       - owner_name:       name of the recipient
       - pet_name:         pet’s name(s)
       - next_appointment: date string (yyyy-MM-dd)
+      - reason:           appointment reason/text
     mode: "web", "desktop", or "auto"
     delay: seconds to wait between messages
     """
@@ -145,20 +146,22 @@ def send_reminders(appointments: list, mode: str = "auto", delay: float = 2.0) -
         if number.startswith("0"):
             number = "2" + number
 
-        name = v.get("owner_name", "")
-        pet  = v.get("pet_name", "")
-        date = v.get("next_appointment", "")
+        name   = v.get("owner_name", "")
+        pet    = v.get("pet_name", "")
+        date   = v.get("next_appointment", "")
+        reason = v.get("reason", "")  # ← newly extracted
 
-        ts    = int(time.time())
-        link  = f"https://www.facebook.com/share/1CdXFXvpQP/?_={ts}"
-        message   = (
+        ts   = int(time.time())
+        link = f"https://www.facebook.com/share/1CdXFXvpQP/?_={ts}"
+        message = (
             f"مرحبا {name} ,\n"
             f"عيادة Cure تذكركم بموعد الزيارة القادمة لمتابعة سلامة {pet}\n"
-            f"بتاريخ {date}\n\n"
+            f"بتاريخ {date}\n"
+            f"وذلك لإجراء موعد {reason}\n\n"  # ← inserted reason line
             "و متنسوش تتابعوا نصايحنا و عروضنا على صفحة الفيسبوك:\n"
             f"{link}"
         )
 
-
         send_whatsapp(number, message, idx, mode)
         time.sleep(delay)
+

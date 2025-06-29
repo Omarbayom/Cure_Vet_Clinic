@@ -70,29 +70,32 @@ class CalendarPage(QWidget):
         conn = db_manager.get_connection()
         cur = conn.cursor()
         cur.execute("""
-          SELECT
-            v.id                  AS visit_id,
-            fa.appointment_date   AS next_appointment,
-            p.id                  AS pet_id,
-            p.pet_name,
-            p.species_id,
-            s.name                AS species,
-            o.id                  AS owner_id,
-            o.name                AS owner_name,
-            o.phone,
-            v.doctor_name
-          FROM future_appointments fa
-          JOIN visits          v  ON fa.visit_id = v.id
-          JOIN pets            p  ON v.pet_id     = p.id
-          JOIN species         s  ON p.species_id = s.id
-          JOIN owners          o  ON p.owner_id   = o.id
-          WHERE fa.appointment_date >= ?
-          ORDER BY fa.appointment_date
+            SELECT
+                v.id                  AS visit_id,
+                fa.appointment_date   AS next_appointment,
+                p.id                  AS pet_id,
+                p.pet_name,
+                p.species_id,
+                s.name                AS species,
+                o.id                  AS owner_id,
+                o.name                AS owner_name,
+                o.phone,
+                v.doctor_name,
+                r.name                AS reason
+            FROM future_appointments fa
+            JOIN visits          v  ON fa.visit_id    = v.id
+            JOIN pets            p  ON v.pet_id       = p.id
+            JOIN species         s  ON p.species_id   = s.id
+            JOIN owners          o  ON p.owner_id     = o.id
+            LEFT JOIN reasons    r  ON fa.reason_id   = r.id
+            WHERE fa.appointment_date >= ?
+            ORDER BY fa.appointment_date
         """, (today,))
         for r in cur.fetchall():
-            d = dict(r)
-            date = d['next_appointment']
-            self.apps_by_date.setdefault(date, []).append(d)
+            record = dict(r)
+            date = record['next_appointment']
+            # each record now includes record['reason']
+            self.apps_by_date.setdefault(date, []).append(record)
         conn.close()
 
     def _build_ui(self):
@@ -176,7 +179,11 @@ class CalendarPage(QWidget):
                 text = f"{v['owner_name']} — {v['pet_name']} (Dr. {v['doctor_name']})"
                 itm = QListWidgetItem(text)
                 itm.setData(Qt.UserRole, v)
+                # make it checkable and default to checked
+                itm.setFlags(itm.flags() | Qt.ItemIsUserCheckable)
+                itm.setCheckState(Qt.Checked)
                 self.list_widget.addItem(itm)
+
 
     def _on_appointment_clicked(self, item: QListWidgetItem):
         v = item.data(Qt.UserRole)
@@ -186,50 +193,56 @@ class CalendarPage(QWidget):
 
     def on_send_reminders(self):
         date_str = self.current_date
-        raw_apps = self.apps_by_date.get(date_str, [])
+        # collect only checked appointments
+        raw_apps = []
+        for i in range(self.list_widget.count()):
+            itm = self.list_widget.item(i)
+            if itm.checkState() == Qt.Checked:
+                raw_apps.append(itm.data(Qt.UserRole))
+
         if not raw_apps:
             QMessageBox.information(
                 self,
-                "No Appointments",
-                f"There are no appointments for {date_str}."
+                "No Selection",
+                "Please check at least one appointment to send reminders."
             )
             return
 
         mode, ok = QInputDialog.getItem(
-            self,
-            "Send Reminders",
+            self, "Send Reminders",
             f"Choose WhatsApp mode for {date_str}:",
             ["desktop", "web", "auto"],
-            current=0,
-            editable=False
+            current=0, editable=False
         )
         if not ok:
             return
 
-        # group multiple appointments by phone into single messages,
-        # ensuring each pet name appears only once
+        # group & merge selected appointments
         groups = {}
         for v in raw_apps:
             phone = v['phone']
             if phone not in groups:
                 groups[phone] = {
-                    'phone':           phone,
-                    'owner_name':      v['owner_name'],
-                    'doctor_name':     v['doctor_name'],
+                    'phone':            phone,
+                    'owner_name':       v['owner_name'],
+                    'doctor_name':      v['doctor_name'],
                     'next_appointment': v['next_appointment'],
-                    'pet_names':       []
+                    'pet_names':        [],
+                    'reasons':          []
                 }
             if v['pet_name'] not in groups[phone]['pet_names']:
                 groups[phone]['pet_names'].append(v['pet_name'])
+                groups[phone]['reasons'].append(v.get('reason', ''))
 
         merged_apps = []
         for g in groups.values():
             merged_apps.append({
-                'phone':           g['phone'],
-                'owner_name':      g['owner_name'],
-                'doctor_name':     g['doctor_name'],
+                'phone':            g['phone'],
+                'owner_name':       g['owner_name'],
+                'doctor_name':      g['doctor_name'],
                 'next_appointment': g['next_appointment'],
-                'pet_name':        ' و '.join(g['pet_names'])
+                'pet_name':         ' و '.join(g['pet_names']),
+                'reason':           ' و '.join(g['reasons'])
             })
 
         wp.send_reminders(merged_apps, mode=mode)

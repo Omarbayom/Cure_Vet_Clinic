@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QWidget, QLabel, QToolButton, QPushButton, QFrame,
     QTableWidget, QTableWidgetItem, QHBoxLayout, QVBoxLayout,
     QSizePolicy, QGraphicsDropShadowEffect, QApplication,
-    QAbstractItemView, QInputDialog, QMessageBox
+    QAbstractItemView, QInputDialog, QMessageBox,QHeaderView
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt
@@ -19,7 +19,9 @@ from db_manager import (
 class InventoryListPage(QWidget):
     def __init__(self, on_back, on_add):
         super().__init__()
-        self.setMinimumSize(900, 600)
+        self.resize(900, 600)
+        self.setMinimumSize(600, 400)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.on_back = on_back
         self.on_add  = on_add
         self._build_ui()
@@ -93,39 +95,50 @@ class InventoryListPage(QWidget):
             "Name", "Category", "Qty", "Unit",
             "Reorder", "Expiry", "Edit", "Delete"
         ])
-        self.tbl.horizontalHeader().setStretchLastSection(True)
-        self.tbl.verticalHeader().setVisible(False)
-        self.tbl.setAlternatingRowColors(True)
-        self.tbl.setShowGrid(False)
-        self.tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tbl.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl.verticalHeader().setDefaultSectionSize(40)
-        self.tbl.setColumnWidth(6, 60)
-        self.tbl.setColumnWidth(7, 70)
 
-        # blue-themed backgrounds
+        # — make table non-editable & non-selectable —
+        self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl.setSelectionMode(QAbstractItemView.NoSelection)
+
+        # — column proportions & edit-button width —
+        header = self.tbl.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)            # Name fills remaining space
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # Category auto-sizes
+        for col in range(2, 6):                                        # Qty, Unit, Reorder, Expiry
+            header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.Fixed)             # Edit column fixed
+        header.resizeSection(6, 100)                                  # 100px wide (adjust as needed)
+        header.setSectionResizeMode(7, QHeaderView.Stretch)   # Delete auto-sizes
+
+        # — word-wrap + auto row sizing with minimum height —
+        self.tbl.setWordWrap(True)
+        # apply a larger global font
+        self.tbl.setFont(QFont("Arial", 20))
+        vh = self.tbl.verticalHeader()
+        vh.setSectionResizeMode(QHeaderView.ResizeToContents)
+        vh.setMinimumSectionSize(100)   # rows at least 100px tall now
+        vh.setDefaultSectionSize(100)   # default height for new rows
+        # — clean, neutral-themed styling with larger font —
         self.tbl.setStyleSheet("""
             QHeaderView::section {
-                background: #009999;
-                color: white;
-                padding: 8px;
+                background-color: #006666;
+                color: #ffffff;
+                padding: 6px;
                 font-size: 16px;
                 border: none;
             }
             QTableWidget {
-                background-color: #e3f2fd;               /* pale blue */
-                alternate-background-color: #bbdefb;     /* light blue */
+                background-color: #ffffff;
+                alternate-background-color: #f5f5f5;
+                gridline-color: #dddddd;
             }
             QTableWidget::item {
                 padding: 8px 12px;
-                border-bottom: 1px solid #ccc;
-            }
-            QTableWidget::item:selected {
-                background-color: #90caf9;
+                border-bottom: 1px solid #eeeeee;
+                font-size: 16px;
             }
             QTableWidget::item:hover {
-                background-color: #e3f2fd;
+                background-color: #f0f0f0;
             }
         """)
         container.addWidget(self.tbl)
@@ -148,7 +161,7 @@ class InventoryListPage(QWidget):
             self.tbl.setItem(r, 5, QTableWidgetItem(item['expiration_date']))
 
             # Edit reorder
-            edit_btn = QPushButton("Edit")
+            edit_btn = QPushButton("📝")
             edit_btn.setCursor(Qt.PointingHandCursor)
             edit_btn.setStyleSheet(
                 "QPushButton{background:#007f7f;color:white;border:none;"
@@ -159,7 +172,7 @@ class InventoryListPage(QWidget):
             self.tbl.setCellWidget(r, 6, edit_btn)
 
             # Delete
-            del_btn = QPushButton("Delete")
+            del_btn = QPushButton("🗑️")
             del_btn.setCursor(Qt.PointingHandCursor)
             del_btn.setStyleSheet(
                 "QPushButton{background:#b40000;color:white;border:none;"
