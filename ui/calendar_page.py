@@ -3,37 +3,42 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QCalendarWidget, QFrame,
-    QSizePolicy, QGraphicsDropShadowEffect
+    QSizePolicy, QGraphicsDropShadowEffect, QInputDialog, QMessageBox
 )
-from PyQt5.QtGui import QFont, QPainter, QBrush, QColor
+from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
 
 import db_manager
+import wp
+
 
 class AppointmentCalendar(QCalendarWidget):
     """
     Subclass QCalendarWidget to draw a star on days that have appointments.
     """
-    def __init__(self, appointments_by_date: dict, *args, **kwargs):
+    def __init__(self, apps_by_date, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.app_map = appointments_by_date
-        self.setGridVisible(True)
-        self.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        self.apps_by_date = apps_by_date
+        self.selectionChanged.connect(
+            lambda: self.parent().on_date_selected(self.selectedDate())
+        )
 
-    def paintCell(self, painter: QPainter, rect, date: QDate):
+    def paintCell(self, painter, rect, date):
         super().paintCell(painter, rect, date)
-        key = date.toString("yyyy-MM-dd")
-        if key in self.app_map and self.app_map[key]:
-            # draw a small orange star in top-right
-            painter.setPen(QColor("#FF8C00"))
-            font = painter.font()
-            font.setPointSize(10)
+        ds = date.toString("yyyy-MM-dd")
+        if ds in self.apps_by_date:
+            painter.save()
+            font = QFont()
+            font.setBold(True)
             painter.setFont(font)
+            painter.setPen(QColor("#ffcc00"))
             painter.drawText(
                 rect.x() + rect.width() - 12,
                 rect.y() + 12,
                 "★"
             )
+            painter.restore()
+
 
 class CalendarPage(QWidget):
     """
@@ -46,24 +51,34 @@ class CalendarPage(QWidget):
         self.on_back = on_back
         self.on_show_history = on_show_history
         self._load_appointments()
+        self.current_date = QDate.currentDate().toString("yyyy-MM-dd")
         self._build_ui()
+        self.on_date_selected(QDate.currentDate())
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        grad = QLinearGradient(0, 0, 0, self.height())
+        grad.setColorAt(0.0, QColor("#009999"))
+        grad.setColorAt(1.0, QColor("#006666"))
+        painter.fillRect(self.rect(), grad)
+        super().paintEvent(event)
 
     def _load_appointments(self):
-        # fetch all future appointments, group by next_appointment date
         self.apps_by_date = {}
         today = QDate.currentDate().toString("yyyy-MM-dd")
         conn = db_manager.get_connection()
         cur = conn.cursor()
         cur.execute("""
           SELECT
-            v.id AS visit_id,
+            v.id           AS visit_id,
             v.next_appointment,
-            o.id   AS owner_id,
-            o.name AS owner_name,
-            o.phone,
-            p.id   AS pet_id,
+            p.id           AS pet_id,
             p.pet_name,
-            s.name AS species,
+            p.species_id,
+            s.name         AS species,
+            o.id           AS owner_id,
+            o.name         AS owner_name,
+            o.phone,
             v.doctor_name
           FROM visits v
           JOIN pets     p ON v.pet_id = p.id
@@ -79,66 +94,61 @@ class CalendarPage(QWidget):
         conn.close()
 
     def _build_ui(self):
-        # overall layout
         main = QVBoxLayout(self)
-        main.setContentsMargins(0,0,0,0)
+        main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
 
-        # header with gradient
-        hdr_layout = QHBoxLayout(); hdr_layout.setContentsMargins(10,10,10,5)
-        back = QPushButton("←"); back.setFont(QFont("Segoe UI",20))
+        hdr_layout = QHBoxLayout()
+        hdr_layout.setContentsMargins(10, 10, 10, 5)
+        back = QPushButton("←")
+        back.setFont(QFont("Segoe UI", 20))
         back.setStyleSheet("color:white;background:transparent;border:none;")
         back.clicked.connect(self.on_back)
         hdr_layout.addWidget(back, Qt.AlignLeft)
+
         title = QLabel("📅 Appointments Calendar")
-        title.setFont(QFont("Segoe UI",26, QFont.Bold))
+        title.setFont(QFont("Segoe UI", 26, QFont.Bold))
         title.setStyleSheet("color:white; background:transparent;")
         hdr_layout.addWidget(title, Qt.AlignLeft)
         hdr_layout.addStretch()
+        main.addLayout(hdr_layout)
 
-        header = QFrame()
-        header.setLayout(hdr_layout)
-        header.setFixedHeight(60)
-        header.setStyleSheet("""
-            QFrame { background: qlineargradient(
-                x1:0, y1:0, x2:0, y2:1,
-                stop:0 #009999, stop:1 #006666
-            ); }
-        """)
-        main.addWidget(header)
+        content = QHBoxLayout()
+        cal = AppointmentCalendar(self.apps_by_date)
+        content.addWidget(cal, 2)
 
-        # content: calendar + side panel
-        content = QHBoxLayout(); content.setContentsMargins(20,20,20,20); content.setSpacing(15)
-
-        # calendar widget
-        self.calendar = AppointmentCalendar(self.apps_by_date)
-        self.calendar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.calendar.clicked.connect(self.on_date_selected)
-        content.addWidget(self.calendar, 2)
-
-        # side panel with list
         panel = QFrame()
         panel.setStyleSheet("background:#e0e0e0; border-radius:8px;")
         shadow = QGraphicsDropShadowEffect(panel)
-        shadow.setBlurRadius(12); shadow.setOffset(0,2); shadow.setColor(QColor(0,0,0,60))
+        shadow.setBlurRadius(12)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QColor(0, 0, 0, 60))
         panel.setGraphicsEffect(shadow)
         panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        side = QVBoxLayout(panel); side.setContentsMargins(15,15,15,15); side.setSpacing(10)
+
+        side = QVBoxLayout(panel)
+        side.setContentsMargins(15, 15, 15, 15)
+        side.setSpacing(10)
 
         side.addWidget(QLabel("Appointments on Selected Date:"))
         self.list_widget = QListWidget()
-        self.list_widget.setFont(QFont("Segoe UI",16))
+        self.list_widget.setFont(QFont("Segoe UI", 16))
         self.list_widget.itemDoubleClicked.connect(self._on_appointment_clicked)
         side.addWidget(self.list_widget, 1)
+
+        remind_btn = QPushButton("🔔 Send Reminders")
+        remind_btn.setFont(QFont("Segoe UI", 14))
+        remind_btn.setCursor(Qt.PointingHandCursor)
+        remind_btn.clicked.connect(self.on_send_reminders)
+        side.addWidget(remind_btn)
 
         content.addWidget(panel, 1)
         main.addLayout(content)
 
-        # show today's by default
-        self._show_appointments_for(QDate.currentDate().toString("yyyy-MM-dd"))
-
     def on_date_selected(self, date: QDate):
-        self._show_appointments_for(date.toString("yyyy-MM-dd"))
+        date_str = date.toString("yyyy-MM-dd")
+        self.current_date = date_str
+        self._show_appointments_for(date_str)
 
     def _show_appointments_for(self, date_str: str):
         self.list_widget.clear()
@@ -147,15 +157,68 @@ class CalendarPage(QWidget):
             self.list_widget.addItem("(No appointments)")
         else:
             for v in visits:
-                text = f"{v['owner_name']} — {v['pet_name']} ({v['doctor_name']})"
+                text = f"{v['owner_name']} — {v['pet_name']} (Dr. {v['doctor_name']})"
                 itm = QListWidgetItem(text)
                 itm.setData(Qt.UserRole, v)
                 self.list_widget.addItem(itm)
 
     def _on_appointment_clicked(self, item: QListWidgetItem):
         v = item.data(Qt.UserRole)
-        # build owner & pet dicts
         owner = {'id': v['owner_id'], 'name': v['owner_name'], 'phone': v['phone']}
         pet   = {'id': v['pet_id'],    'pet_name': v['pet_name'],    'species': v['species']}
-        # navigate to history
         self.on_show_history(owner, pet)
+
+    def on_send_reminders(self):
+        date_str = self.current_date
+        raw_apps = self.apps_by_date.get(date_str, [])
+        if not raw_apps:
+            QMessageBox.information(
+                self,
+                "No Appointments",
+                f"There are no appointments for {date_str}."
+            )
+            return
+
+        mode, ok = QInputDialog.getItem(
+            self,
+            "Send Reminders",
+            f"Choose WhatsApp mode for {date_str}:",
+            ["desktop", "web", "auto"],
+            current=0,
+            editable=False
+        )
+        if not ok:
+            return
+
+        # group multiple appointments by phone into single messages,
+        # ensuring each pet name appears only once
+        groups = {}
+        for v in raw_apps:
+            phone = v['phone']
+            if phone not in groups:
+                groups[phone] = {
+                    'phone':           phone,
+                    'owner_name':      v['owner_name'],
+                    'doctor_name':     v['doctor_name'],
+                    'next_appointment': v['next_appointment'],
+                    'pet_names':       []
+                }
+            if v['pet_name'] not in groups[phone]['pet_names']:
+                groups[phone]['pet_names'].append(v['pet_name'])
+
+        merged_apps = []
+        for g in groups.values():
+            merged_apps.append({
+                'phone':           g['phone'],
+                'owner_name':      g['owner_name'],
+                'doctor_name':     g['doctor_name'],
+                'next_appointment': g['next_appointment'],
+                'pet_name':        ' و '.join(g['pet_names'])
+            })
+
+        wp.send_reminders(merged_apps, mode=mode)
+        QMessageBox.information(
+            self,
+            "Reminders Sent",
+            f"Sent {len(merged_apps)} reminder(s) for {date_str}."
+        )

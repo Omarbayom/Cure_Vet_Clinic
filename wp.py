@@ -1,26 +1,28 @@
-# whatsapp_switcher.py
+# wp.py
 
 import time
 import urllib.parse
 import webbrowser
 import sys
 import os
-import argparse
 
-# — try to import window/control libs, else prompt to install —
+# — try to import window/control libs —
 try:
     import pygetwindow as gw
     import pyautogui
     import win32process
     import psutil
-except ImportError:
-    print("⚠️  Missing dependencies. Install with:\n    pip install pygetwindow pyautogui pywin32 psutil")
-    sys.exit(1)
+    import pyperclip
+except ImportError as e:
+    raise ImportError(
+        "Missing dependencies for wp module: "
+        "pip install pygetwindow pyautogui pywin32 psutil pyperclip"
+    ) from e
 
-# Only treat these executables as valid WhatsApp Web hosts
+# Only these executables count as valid WhatsApp Web hosts
 BROWSERS = {"chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe"}
 
-def is_whatsapp_web_window(win):
+def is_whatsapp_web_window(win) -> bool:
     """Detect a browser window/tab running WhatsApp Web."""
     if not (win.visible and "WhatsApp" in win.title):
         return False
@@ -31,7 +33,7 @@ def is_whatsapp_web_window(win):
         return False
     return exe in BROWSERS
 
-def is_whatsapp_desktop_window(win):
+def is_whatsapp_desktop_window(win) -> bool:
     """Detect the native WhatsApp Desktop window."""
     if not (win.visible and "WhatsApp" in win.title):
         return False
@@ -42,15 +44,20 @@ def is_whatsapp_desktop_window(win):
         return False
     return exe == "whatsapp.exe"
 
-def send_via_web(chat_id: str, message: str, idx: int):
-    """Send via WhatsApp Web by opening the URL in-browser and automating paste+enter."""
-    encoded = urllib.parse.quote(message)
-    url = f"https://web.whatsapp.com/send?phone={chat_id}&text={encoded}"
+def send_via_web(chat_id: str, message: str, idx: int = 1) -> None:
+    """
+    Send via WhatsApp Web:
+    - open or focus the chat URL
+    - accept any “Click to Chat” prompt
+    - paste the message from clipboard
+    - press Enter to send
+    """
+    url = f"https://web.whatsapp.com/send?phone={chat_id}"
 
-    # focus existing tab or open new one
-    wa_tabs = [w for w in gw.getAllWindows() if is_whatsapp_web_window(w)]
-    if wa_tabs:
-        win = wa_tabs[0]
+    # focus existing WhatsApp Web tab or open a new one
+    tabs = [w for w in gw.getAllWindows() if is_whatsapp_web_window(w)]
+    if tabs:
+        win = tabs[0]
         win.activate()
         time.sleep(0.5)
         pyautogui.hotkey("ctrl", "l")
@@ -62,36 +69,53 @@ def send_via_web(chat_id: str, message: str, idx: int):
     else:
         webbrowser.open_new_tab(url)
 
-    # initial load wait
+    # wait for page + prompt
     time.sleep(5 if idx == 1 else 2)
+    # 1) accept any “Click to Chat” / “Continue to Chat” prompt
+    pyautogui.press("enter")
+    time.sleep(1)
+    # 2) paste the actual message
+    pyperclip.copy(message)
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(0.5)
+    # 3) send it
     pyautogui.press("enter")
 
-def send_via_desktop(chat_id: str, message: str, idx: int):
-    """Send via WhatsApp Desktop using the whatsapp:// URI scheme."""
-    encoded = urllib.parse.quote(message)
-    uri = f"whatsapp://send?phone={chat_id}&text={encoded}"
-
-    # try launching the desktop app
+def send_via_desktop(chat_id: str, message: str, idx: int = 1) -> None:
+    """
+    Send via WhatsApp Desktop:
+    - launch whatsapp:// URI
+    - accept any new-chat confirmation
+    - paste the message from clipboard
+    - press Enter to send
+    """
+    uri = f"whatsapp://send?phone={chat_id}"
     try:
         os.startfile(uri)
     except Exception:
-        # fallback: open in default browser
         webbrowser.open(uri)
 
-    # wait for the app to open
+    # wait for app + any prompt
     time.sleep(5 if idx == 1 else 2)
-
-    # find and focus the Desktop window
-    wa_windows = [w for w in gw.getAllWindows() if is_whatsapp_desktop_window(w)]
-    if wa_windows:
-        win = wa_windows[0]
+    # 1) accept new-chat confirmation
+    pyautogui.press("enter")
+    time.sleep(1)
+    # 2) focus the Desktop window
+    wins = [w for w in gw.getAllWindows() if is_whatsapp_desktop_window(w)]
+    if wins:
+        win = wins[0]
         win.activate()
         time.sleep(0.5)
-
+    # 3) paste and send
+    pyperclip.copy(message)
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(0.5)
     pyautogui.press("enter")
 
-def send_whatsapp(chat_id: str, message: str, idx: int, mode: str = "auto"):
-    """Dispatch to the selected mode (web, desktop, or auto)."""
+def send_whatsapp(chat_id: str, message: str, idx: int = 1, mode: str = "auto") -> None:
+    """
+    Dispatch to the selected mode: "web", "desktop", or "auto".
+    """
     if mode == "web":
         send_via_web(chat_id, message, idx)
     elif mode == "desktop":
@@ -102,26 +126,39 @@ def send_whatsapp(chat_id: str, message: str, idx: int, mode: str = "auto"):
         except Exception:
             send_via_web(chat_id, message, idx)
     else:
-        raise ValueError(f"Unknown mode '{mode}'. Choose from 'web', 'desktop', or 'auto'.")
+        raise ValueError(f"Unknown mode '{mode}'. Choose 'web', 'desktop', or 'auto'.")
 
-if __name__ == "__main__":
-
-    # Map each phone number to a name
-    recipients = {
-        "201013866238":"joe",
-        "201093553466":"omar",
-        "01222742029":"willy"
-        # add more recipients here…
-    }
-
-    total = len(recipients)
-    for idx, (number, name) in enumerate(recipients.items(), start=1):
-        print(f"\n➡️  Sending to {name} ({number}) — {idx}/{total}")
-        message = f"Hello {name}! This is your message form my pre message sender script. " \
-                  "You can customize this message as needed. " \
-                  "This is a test message to ensure everything works correctly."
+def send_reminders(appointments: list, mode: str = "auto", delay: float = 2.0) -> None:
+    """
+    Send WhatsApp reminders for a list of appointment dicts.
+    Each dict should have keys:
+      - phone:            recipient phone number (string)
+      - owner_name:       name of the recipient
+      - pet_name:         pet’s name(s)
+      - next_appointment: date string (yyyy-MM-dd)
+    mode: "web", "desktop", or "auto"
+    delay: seconds to wait between messages
+    """
+    for idx, v in enumerate(appointments, start=1):
+        number = v.get("phone", "")
+        # ensure country code
         if number.startswith("0"):
-            number = "2" + number  # ensure country code
+            number = "2" + number
 
-        send_whatsapp(number, message, idx, mode="desktop")
-        time.sleep(5)
+        name = v.get("owner_name", "")
+        pet  = v.get("pet_name", "")
+        date = v.get("next_appointment", "")
+
+        ts    = int(time.time())
+        link  = f"https://www.facebook.com/share/1CdXFXvpQP/?_={ts}"
+        message   = (
+            f"مرحبا {name} ,\n"
+            f"عيادة Cure تذكركم بموعد الزيارة القادمة لمتابعة سلامة {pet}\n"
+            f"بتاريخ {date}\n\n"
+            "و متنسوش تتابعوا نصايحنا و عروضنا على صفحة الفيسبوك:\n"
+            f"{link}"
+        )
+
+
+        send_whatsapp(number, message, idx, mode)
+        time.sleep(delay)
