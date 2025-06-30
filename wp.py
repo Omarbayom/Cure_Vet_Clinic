@@ -5,6 +5,11 @@ import urllib.parse
 import webbrowser
 import sys
 import os
+import win32gui, win32con
+import ctypes
+
+
+
 
 # — try to import window/control libs —
 try:
@@ -52,7 +57,9 @@ def send_via_web(chat_id: str, message: str, idx: int = 1) -> None:
     - paste the message from clipboard
     - press Enter to send
     """
-    url = f"https://web.whatsapp.com/send?phone={chat_id}"
+    encoded = urllib.parse.quote(message)
+    url = f"https://web.whatsapp.com/send?phone={chat_id}&text={encoded}"
+
 
     # focus existing WhatsApp Web tab or open a new one
     tabs = [w for w in gw.getAllWindows() if is_whatsapp_web_window(w)]
@@ -66,12 +73,10 @@ def send_via_web(chat_id: str, message: str, idx: int = 1) -> None:
         time.sleep(0.1)
         pyautogui.typewrite(url)
         pyautogui.press("enter")
+        time.sleep(30)
     else:
         webbrowser.open_new_tab(url)
 
-    # wait for page + prompt
-    time.sleep(5 if idx == 1 else 2)
-    # 1) accept any “Click to Chat” / “Continue to Chat” prompt
     pyautogui.press("enter")
     time.sleep(1)
     # 2) paste the actual message

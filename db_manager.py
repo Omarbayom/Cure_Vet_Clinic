@@ -619,3 +619,114 @@ def get_future_appointments_by_visit(visit_id: int) -> list[dict]:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
+
+
+def get_report_details(start_date, end_date):
+    from db_manager import get_connection
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cost_rows = cur.execute("""
+        SELECT
+            CASE WHEN is_inventory = 1 THEN 'Inventory' ELSE 'Pharmacy' END AS label,
+            SUM(quantity * unit_price) AS total
+        FROM prescriptions
+        JOIN visits ON prescriptions.visit_id = visits.id
+        WHERE visit_date BETWEEN ? AND ?
+        GROUP BY is_inventory
+    """, (start_date, end_date)).fetchall()
+
+    cost_details = [
+        {"type": "Cost", "label": row["label"], "amount": row["total"] or 0.0}
+        for row in cost_rows
+    ]
+
+    revenue_rows = cur.execute("""
+        SELECT
+            reasons.name AS label,
+            SUM(prescriptions.quantity * prescriptions.unit_price) AS total
+        FROM prescriptions
+        JOIN visits ON prescriptions.visit_id = visits.id
+        JOIN future_appointments ON visits.id = future_appointments.visit_id
+        JOIN reasons ON future_appointments.reason_id = reasons.id
+        WHERE visit_date BETWEEN ? AND ?
+        GROUP BY reasons.name
+    """, (start_date, end_date)).fetchall()
+
+    revenue_details = [
+        {"type": "Revenue", "label": row["label"], "amount": row["total"] or 0.0}
+        for row in revenue_rows
+    ]
+
+    conn.close()
+    return revenue_details + cost_details
+
+
+def get_purchase_details(start_date: str, end_date: str) -> list[dict]:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT i.name AS item, p.quantity, p.unit_cost, p.total_cost, p.purchase_date
+        FROM purchases p
+        JOIN inventory i ON p.inventory_id = i.id
+        WHERE p.purchase_date BETWEEN ? AND ?
+        ORDER BY p.purchase_date DESC
+    """, (start_date, end_date))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def get_sales_details(start_date: str, end_date: str) -> list[dict]:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            COALESCE(i.name, p.med_name) AS service,
+            o.name AS owner,
+            p.quantity,
+            (p.quantity * p.unit_price) AS total,
+            v.visit_date
+        FROM prescriptions p
+        JOIN visits v ON p.visit_id = v.id
+        JOIN pets pt ON v.pet_id = pt.id
+        JOIN owners o ON pt.owner_id = o.id
+        LEFT JOIN inventory i ON p.inventory_id = i.id
+        WHERE v.visit_date BETWEEN ? AND ?
+        ORDER BY v.visit_date DESC
+    """, (start_date, end_date))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_visit_details(start_date: str, end_date: str) -> list[dict]:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT pt.pet_name, o.name AS owner, v.visit_date, v.doctor_name, v.notes
+        FROM visits v
+        JOIN pets pt ON v.pet_id = pt.id
+        JOIN owners o ON pt.owner_id = o.id
+        WHERE v.visit_date BETWEEN ? AND ?
+        ORDER BY v.visit_date DESC
+    """, (start_date, end_date))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def get_visit_report_details(start_date, end_date):
+    conn = get_connection(); cur = conn.cursor()
+    cur.execute("""
+      SELECT v.id, p.pet_name, o.name AS owner,
+             v.visit_date, v.doctor_name, v.notes
+        FROM visits v
+        JOIN pets p ON v.pet_id = p.id
+        JOIN owners o ON p.owner_id = o.id
+       WHERE v.visit_date BETWEEN ? AND ?
+       ORDER BY v.visit_date DESC
+    """, (start_date, end_date))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows

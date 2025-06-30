@@ -102,13 +102,8 @@ class InventoryListPage(QWidget):
 
         # — column proportions & edit-button width —
         header = self.tbl.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)            # Name fills remaining space
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)   # Category auto-sizes
-        for col in range(2, 6):                                        # Qty, Unit, Reorder, Expiry
-            header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.Fixed)             # Edit column fixed
-        header.resizeSection(6, 100)                                  # 100px wide (adjust as needed)
-        header.setSectionResizeMode(7, QHeaderView.Stretch)   # Delete auto-sizes
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
 
         # — word-wrap + auto row sizing with minimum height —
         self.tbl.setWordWrap(True)
@@ -120,27 +115,30 @@ class InventoryListPage(QWidget):
         vh.setDefaultSectionSize(100)   # default height for new rows
         # — clean, neutral-themed styling with larger font —
         self.tbl.setStyleSheet("""
-            QHeaderView::section {
-                background-color: #006666;
-                color: #ffffff;
-                padding: 6px;
-                font-size: 16px;
-                border: none;
-            }
             QTableWidget {
                 background-color: #ffffff;
-                alternate-background-color: #f5f5f5;
-                gridline-color: #dddddd;
+                font-size: 20px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                gridline-color: #ddd;
+            }
+            QHeaderView::section {
+                background-color: #006666;
+                color: white;
+                font-weight: bold;
+                font-size: 18px;
+                padding: 8px;
+                border: none;
             }
             QTableWidget::item {
-                padding: 8px 12px;
-                border-bottom: 1px solid #eeeeee;
-                font-size: 16px;
+                padding: 12px;
+                border-bottom: 1px solid #eee;
             }
-            QTableWidget::item:hover {
-                background-color: #f0f0f0;
+            QTableWidget::item:selected {
+                background-color: #f2f2f2;
             }
         """)
+
         container.addWidget(self.tbl)
         main.addWidget(panel)
 
@@ -163,22 +161,36 @@ class InventoryListPage(QWidget):
             # Edit reorder
             edit_btn = QPushButton("📝")
             edit_btn.setCursor(Qt.PointingHandCursor)
-            edit_btn.setStyleSheet(
-                "QPushButton{background:#007f7f;color:white;border:none;"
-                "padding:4px;border-radius:4px;}"
-                "QPushButton:hover{background:#005f5f}"
-            )
+            edit_btn.setStyleSheet("""
+                QPushButton {
+                    background: white;
+                    border: 2px solid #007f7f;
+                    border-radius: 6px;
+                    font-size: 16px;
+                    padding: 4px 8px;
+                }
+                QPushButton:hover {
+                    background: #e0ffff;
+                }
+            """)
             edit_btn.clicked.connect(lambda _, it=item: self._edit_reorder(it))
             self.tbl.setCellWidget(r, 6, edit_btn)
 
             # Delete
             del_btn = QPushButton("🗑️")
             del_btn.setCursor(Qt.PointingHandCursor)
-            del_btn.setStyleSheet(
-                "QPushButton{background:#b40000;color:white;border:none;"
-                "padding:4px;border-radius:4px;}"
-                "QPushButton:hover{background:#8a0000}"
-            )
+            del_btn.setStyleSheet("""
+                QPushButton {
+                    background: white;
+                    border: 2px solid #b40000;
+                    border-radius: 6px;
+                    font-size: 16px;
+                    padding: 4px 8px;
+                }
+                QPushButton:hover {
+                    background: #ffe5e5;
+                }
+            """)
             del_btn.clicked.connect(lambda _, iid=item['id']: self._remove(iid))
             self.tbl.setCellWidget(r, 7, del_btn)
 

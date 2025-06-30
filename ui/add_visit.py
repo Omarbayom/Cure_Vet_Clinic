@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QListWidget, QListWidgetItem, QTextEdit, QDateEdit, QComboBox,
     QSpinBox, QDoubleSpinBox, QTableWidget, QMessageBox,
-    QToolButton, QFrame, QSizePolicy, QGraphicsDropShadowEffect, QStackedLayout
+    QToolButton, QFrame, QSizePolicy, QGraphicsDropShadowEffect, QStackedLayout,QHeaderView
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
@@ -169,8 +169,36 @@ class AddVisitPage(QWidget):
         p2 = QVBoxLayout(page2); p2.setSpacing(8)
         p2.addWidget(QLabel("Future Appointments (optional):"))
         self.app_table = QTableWidget(0, 2)
-        self.app_table.setFont(QFont("Segoe UI",18))
+        self.app_table.setFont(QFont("Arial", 20))
+        self.app_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #ffffff;
+                font-size: 20px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                gridline-color: #ddd;
+            }
+            QHeaderView::section {
+                background-color: #006666;
+                color: white;
+                font-weight: bold;
+                font-size: 18px;
+                padding: 8px;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 12px;
+                border-bottom: 1px solid #eee;
+            }
+            QTableWidget::item:selected {
+                background-color: #f2f2f2;
+            }
+        """)
+        self.app_table.verticalHeader().setDefaultSectionSize(60)
         self.app_table.setHorizontalHeaderLabels(["Date", "Reason"])
+        self.app_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+
         p2.addWidget(self.app_table, stretch=1)
 
         add_app = QPushButton("➕ Add Date/Reason"); add_app.setStyleSheet(btn_style)
@@ -190,11 +218,38 @@ class AddVisitPage(QWidget):
         page3 = QWidget()
         p3 = QVBoxLayout(page3); p3.setSpacing(8)
         p3.addWidget(QLabel("Prescriptions:"))
-        self.pres_table = QTableWidget(0,5)
-        self.pres_table.setFont(QFont("Segoe UI",18))
+        self.pres_table = QTableWidget(0, 5)
+        self.pres_table.setFont(QFont("Arial", 20))
+        self.pres_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #ffffff;
+                font-size: 20px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                gridline-color: #ddd;
+            }
+            QHeaderView::section {
+                background-color: #006666;
+                color: white;
+                font-weight: bold;
+                font-size: 18px;
+                padding: 8px;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 12px;
+                border-bottom: 1px solid #eee;
+            }
+            QTableWidget::item:selected {
+                background-color: #f2f2f2;
+            }
+        """)
+        self.pres_table.verticalHeader().setDefaultSectionSize(60)
         self.pres_table.setHorizontalHeaderLabels(
-            ["Source","Medicine","Batch","Qty","Unit Price"]
+            ["Source", "Medicine", "Batch", "Qty", "Unit Price"]
         )
+        self.pres_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
         p3.addWidget(self.pres_table, stretch=1)
 
         nav3 = QHBoxLayout()
