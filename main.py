@@ -14,13 +14,17 @@ from ui.add_visit         import AddVisitPage
 from ui.show_history      import ShowHistoryPage
 from ui.calendar_page     import CalendarPage
 from ui.report            import ReportPage
+from notification_manager import NotificationManager,NotificationPage
 
 
 
 class MainApp(QMainWindow):
-    def __init__(self):
+    def __init__(self, notif_manager):
         super().__init__()
         self.setWindowTitle("Cure Vet Clinic")
+
+        # Keep a reference to the notification manager
+        self.notif_manager = notif_manager
 
         # Stacked widget holds all pages
         self.stack = QStackedWidget()
@@ -29,42 +33,47 @@ class MainApp(QMainWindow):
         # Pages
         self.welcome          = WelcomeWidget(on_start=self.show_dashboard)
         self.dashboard = DashboardWidget(
-            on_back             = self.show_welcome,
-            on_book_appointment = self.show_add_visit,
-            on_show_history     = self.show_history_search,
-            on_add_patient      = self.show_add_patient,
-            on_manage_inventory = self.show_inventory_list,
-            on_show_calendar    = self.show_calendar_page,
-            on_show_report      = self.show_report_page
+            on_back               = self.show_welcome,
+            on_book_appointment   = self.show_add_visit,
+            on_show_history       = self.show_history_search,
+            on_add_patient        = self.show_add_patient,
+            on_manage_inventory   = self.show_inventory_list,
+            on_show_calendar      = self.show_calendar_page,
+            on_show_report        = self.show_report_page,
+            on_show_notifications = self.show_notifications,    # ← new callback
+            notif_manager         = self.notif_manager         # ← new manager
         )
 
 
         self.report_page      = ReportPage(on_back=self.show_dashboard)
-
-        self.calendar_page = CalendarPage(
+        self.calendar_page    = CalendarPage(
             on_back=self.show_dashboard,
             on_show_history=self.show_history
         )
         self.add_patient      = AddPatientPage(on_back=self.show_dashboard)
-        self.inventory_list   = InventoryListPage(on_back=self.show_dashboard,
-                                                  on_add=self.show_add_inventory)
+        self.inventory_list   = InventoryListPage(
+            on_back=self.show_dashboard,
+            on_add=self.show_add_inventory
+        )
         self.add_inventory    = AddInventoryPage(on_back=self.show_inventory_list)
-        # Add Visit page (new visit flow, with ability to jump to history)
-        # — after self.add_inventory  —
         self.add_visit        = AddVisitPage(
-            on_back         = self.show_dashboard,
-            on_show_history = self.show_history        # callback(owner,pet)
+            on_back=self.show_dashboard,
+            on_show_history=self.show_history
         )
         self.show_history_page = ShowHistoryPage(
             on_back      = self.show_dashboard,
-            on_add_visit = self.show_add_visit_for_pet # callback(owner,pet)
+            on_add_visit = self.show_add_visit_for_pet
+        )
+
+        # ── NEW: Notification settings page ──────────────────────────────
+        self.notification_page = NotificationPage(
+            parent=self,
+            notif_manager=self.notif_manager,
+            on_back=self.show_dashboard
         )
 
 
-
-
         # Add pages to the stack
-        # ─── Replace your stacking loop with this ──────────────────────────────────
         for w in (
             self.welcome,
             self.dashboard,
@@ -74,11 +83,10 @@ class MainApp(QMainWindow):
             self.add_visit,
             self.show_history_page,
             self.calendar_page,
-            self.report_page
+            self.report_page,
+            self.notification_page
         ):
             self.stack.addWidget(w)
-
-
 
         # start on welcome
         self.stack.setCurrentWidget(self.welcome)
@@ -197,12 +205,16 @@ class MainApp(QMainWindow):
     def show_report_page(self):
         self.stack.setCurrentWidget(self.report_page)
 
+    def show_notifications(self):
+        self.stack.setCurrentWidget(self.notification_page)
 
 
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    main_win = MainApp()
+        # 1) start notifications
+    notif_manager = NotificationManager(parent=None)
+    main_win = MainApp(notif_manager)
 
     # Splash
     splash = SplashScreen(duration_ms=1500)

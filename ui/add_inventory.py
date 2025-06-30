@@ -5,13 +5,106 @@ from PyQt5.QtWidgets import (
     QWidget, QLabel, QLineEdit, QDateEdit, QSpinBox, QDoubleSpinBox,
     QPushButton, QFormLayout, QVBoxLayout, QHBoxLayout, QMessageBox,
     QFrame, QSizePolicy, QToolButton, QGraphicsDropShadowEffect,
-    QApplication, QCalendarWidget
+    QApplication, QCalendarWidget, QDialog
 )
-from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
+from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor,QIcon
 from PyQt5.QtCore import Qt, QDate
 
 import db_manager
 from db_manager import add_or_restock_inventory, add_purchase
+
+class StyledDialog(QDialog):
+    # …
+    INFO, WARNING, QUESTION = range(3)
+
+    ICONS = {
+        INFO:    QIcon.fromTheme("dialog-information"),
+        WARNING: QIcon.fromTheme("dialog-warning"),
+        QUESTION: QIcon.fromTheme("dialog-question")
+    }
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        dialog_type: int = INFO,
+        buttons: list[tuple] = [("OK", True)],
+        parent=None
+    ):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border: 2px solid #006666;
+                border-radius: 8px;
+            }
+            QLabel#hdr {
+                background-color: #006666;
+                color: #ffffff;
+                padding: 14px 24px;
+                font-size: 20px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+            QLabel#body {
+                background-color: #f9f9f9;
+                font-size: 18px;
+                padding: 24px;
+            }
+            QWidget#footer {
+                background-color: #ffffff;
+                padding: 14px 0;
+                border-bottom-left-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }
+            QPushButton {
+                font-size: 16px;
+                padding: 10px 28px;
+                border-radius: 6px;
+                border: none;
+                background-color: #006666;
+                color: #ffffff;
+            }
+            QPushButton:hover { background-color: #008080; }
+            QPushButton:pressed { background-color: #005757; }
+        """)
+        # make it slightly wider/taller for better spacing
+        self.setFixedSize(440, 240 + 40 * (len(buttons) - 1))
+
+        # inset everything so the teal border shows through
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(0)
+
+        # Header
+        hdr = QLabel(f"  {title}", objectName="hdr")
+        hdr.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        hdr.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        icon = StyledDialog.ICONS.get(dialog_type)
+        if icon:
+            hdr.setPixmap(icon.pixmap(24, 24))
+            hdr.setIndent(30)
+        layout.addWidget(hdr)
+
+        # Body
+        body = QLabel(message, objectName="body")
+        body.setWordWrap(True)
+        body.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(body)
+
+        # Footer (buttons)
+        footer = QWidget(objectName="footer")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(24, 0, 24, 0)
+        footer_layout.setSpacing(20)
+        footer_layout.addStretch(1)
+        for label, is_accept in buttons:
+            btn = QPushButton(label)
+            btn.clicked.connect(self.accept if is_accept else self.reject)
+            footer_layout.addWidget(btn)
+        footer_layout.addStretch(1)
+        layout.addWidget(footer)
+
 
 class AddInventoryPage(QWidget):
     def __init__(self, on_back):
@@ -196,8 +289,16 @@ class AddInventoryPage(QWidget):
         pdate   = self.pur_date_input.date().toPyDate().isoformat()
         cost    = self.pur_price_input.value()
 
-        if not all([name, cat, unit, qty, exp, pdate]) or sell < 0 or cost <= 0:
-            QMessageBox.warning(self, "Validation Error", "Please fill all required fields.")
+        # 1) Validation
+        if not all([name, cat, unit, qty, exp, pdate]) or sell < 0 or cost < 0:
+            dlg = StyledDialog(
+                title="Validation Error",
+                message="Please fill all required fields.",
+                dialog_type=StyledDialog.WARNING,
+                buttons=[("OK", True)],
+                parent=self
+            )
+            dlg.exec_()
             return
 
         batch = {
@@ -210,10 +311,9 @@ class AddInventoryPage(QWidget):
             'default_sell_price': sell
         }
 
+        # 2) Database operations
         try:
-            # first restock/add the inventory batch
             inv_id = add_or_restock_inventory(batch)
-            # then record the purchase
             add_purchase(
                 inventory_id=inv_id,
                 purchase_date=pdate,
@@ -221,12 +321,26 @@ class AddInventoryPage(QWidget):
                 unit_cost=cost
             )
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            dlg = StyledDialog(
+                title="Error",
+                message=str(e),
+                dialog_type=StyledDialog.WARNING,
+                buttons=[("OK", True)],
+                parent=self
+            )
+            dlg.exec_()
             return
 
-        QMessageBox.information(self, "Success", "Inventory updated.")
+        # 3) Success
+        dlg = StyledDialog(
+            title="Success",
+            message="Inventory updated.",
+            dialog_type=StyledDialog.INFO,
+            buttons=[("OK", True)],
+            parent=self
+        )
+        dlg.exec_()
         self.on_back()
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
