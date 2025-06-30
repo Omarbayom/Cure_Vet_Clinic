@@ -4,9 +4,9 @@ from PyQt5.QtWidgets import (
     QComboBox, QSpinBox, QPushButton, QFormLayout,
     QVBoxLayout, QHBoxLayout, QMessageBox, QToolButton,
     QSizePolicy, QFrame, QGraphicsDropShadowEffect,
-    QApplication, QCalendarWidget
+    QApplication, QCalendarWidget,QDialog
 )
-from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
+from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor,QIcon
 from PyQt5.QtCore import Qt, QDate
 
 from db_manager import (
@@ -14,6 +14,99 @@ from db_manager import (
     get_owner_by_phone, add_owner, add_pet,
     find_pet, update_pet
 )
+
+class StyledDialog(QDialog):
+    INFO, WARNING, QUESTION = range(3)
+
+    ICONS = {
+        INFO:    QIcon.fromTheme("dialog-information"),
+        WARNING: QIcon.fromTheme("dialog-warning"),
+        QUESTION: QIcon.fromTheme("dialog-question")
+    }
+
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        dialog_type: int = INFO,
+        buttons: list[tuple] = [("OK", True)],
+        parent=None
+    ):
+        super().__init__(parent)
+        # ── Frameless window with custom border ──
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border: 2px solid #006666;
+                border-radius: 8px;
+            }
+            QLabel#hdr {
+                background-color: #006666;
+                color: #ffffff;
+                padding: 12px 20px;
+                font-size: 20px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+            QLabel#body {
+                background-color: #f9f9f9;
+                font-size: 18px;
+                padding: 20px;
+            }
+            QWidget#footer {
+                background-color: #ffffff;
+                padding: 12px 0;
+                border-bottom-left-radius: 6px;
+                border-bottom-right-radius: 6px;
+            }
+            QPushButton {
+                font-size: 16px;
+                padding: 8px 24px;
+                border-radius: 6px;
+                border: none;
+                background-color: #006666;
+                color: #ffffff;
+            }
+            QPushButton:hover { background-color: #008080; }
+            QPushButton:pressed { background-color: #005757; }
+        """)
+        # ── Adjust size based on buttons ──
+        self.setFixedSize(420, 220 + 40 * (len(buttons) - 1))
+
+        # ── Main layout with inset margins ──
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(0)
+
+        # Header
+        hdr = QLabel(f"  {title}", objectName="hdr")
+        hdr.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        hdr.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        icon = StyledDialog.ICONS.get(dialog_type)
+        if icon:
+            hdr.setPixmap(icon.pixmap(24, 24))
+            hdr.setIndent(30)
+        layout.addWidget(hdr)
+
+        # Body message
+        body = QLabel(message, objectName="body")
+        body.setWordWrap(True)
+        body.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(body)
+
+        # Footer container with buttons
+        footer = QWidget(objectName="footer")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(20, 0, 20, 0)
+        footer_layout.setSpacing(16)
+        footer_layout.addStretch(1)
+        for label, is_accept in buttons:
+            btn = QPushButton(label)
+            btn.clicked.connect(self.accept if is_accept else self.reject)
+            footer_layout.addWidget(btn)
+        footer_layout.addStretch(1)
+        layout.addWidget(footer)
 
 class AddPatientPage(QWidget):
     def __init__(self, on_back):
@@ -275,10 +368,15 @@ class AddPatientPage(QWidget):
         first_visit = self.first_visit.date().toPyDate().isoformat()
         gender      = self.gender.currentText().strip()
 
-        # required validation
         if not all([phone, owner, pet, species, first_visit]):
-            QMessageBox.warning(self, "Validation Error",
-                                "Please fill all required fields.")
+            dlg = StyledDialog(
+                title="Validation Error",
+                message="Please fill all required fields.",
+                dialog_type=StyledDialog.WARNING,
+                buttons=[("OK", True)],
+                parent=self
+            )
+            dlg.exec_()
             return
 
         # ensure species/color exist
@@ -291,12 +389,14 @@ class AddPatientPage(QWidget):
         # duplicate?
         existing = find_pet(owner_id, species, pet)
         if existing:
-            resp = QMessageBox.question(
-                self, "Pet Already Exists",
-                f"A {species} named {pet} already exists.\nUpdate it?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            dlg = StyledDialog(
+                title="Pet Already Exists",
+                message=f"A {species} named {pet} already exists.\nUpdate it?",
+                dialog_type=StyledDialog.QUESTION,
+                buttons=[("Yes", True), ("No", False)],
+                parent=self
             )
-            if resp == QMessageBox.Yes:
+            if dlg.exec_() == QDialog.Accepted:
                 pet_data = {
                     'owner_id': owner_id,
                     'pet_name': pet,
@@ -305,10 +405,18 @@ class AddPatientPage(QWidget):
                     'gender': gender
                 }
                 update_pet(existing['id'], pet_data)
-                QMessageBox.information(self, "Updated", "Pet record updated.")
+                dlg = StyledDialog(
+                    title="Updated",
+                    message="Pet record updated.",
+                    dialog_type=StyledDialog.INFO,
+                    buttons=[("OK", True)],
+                    parent=self
+                )
+                dlg.exec_()
                 self._clear_form()
                 self.on_back()
                 return
+
             else:
                 return
 
@@ -323,10 +431,24 @@ class AddPatientPage(QWidget):
         try:
             add_pet(pet_data)
         except Exception as e:
-            QMessageBox.critical(self, "Database Error", str(e))
+            dlg = StyledDialog(
+                title="Database Error",
+                message=str(e),
+                dialog_type=StyledDialog.WARNING,
+                buttons=[("OK", True)],
+                parent=self
+            )
+            dlg.exec_()
             return
 
-        QMessageBox.information(self, "Success", "Patient added.")
+        dlg = StyledDialog(
+            title="Success",
+            message="Patient added.",
+            dialog_type=StyledDialog.INFO,
+            buttons=[("OK", True)],
+            parent=self
+        )
+        dlg.exec_()
         self._clear_form()
         self.on_back()
 

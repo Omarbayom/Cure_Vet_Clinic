@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
 
+
 import db_manager
 import wp
 
