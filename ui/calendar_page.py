@@ -3,13 +3,165 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QCalendarWidget, QFrame,
-    QSizePolicy, QGraphicsDropShadowEffect, QInputDialog, QMessageBox
+    QSizePolicy, QGraphicsDropShadowEffect, QInputDialog, QMessageBox,QDialog, QComboBox
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
 
 import db_manager
 import wp
+
+# ── New at top of file, after ModeSelectDialog ──
+class ConfirmDialog(QDialog):
+    def __init__(self, title: str, message: str, parent=None):
+        super().__init__(parent)
+        # remove native title bar
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setFixedSize(400, 160)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border: 2px solid #006666;
+                border-radius: 8px;
+            }
+            QLabel#hdr {
+                background-color: #006666;
+                color: white;
+                padding: 10px;
+                font-size: 20px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+            QLabel#body {
+                font-size: 18px;
+                padding: 20px;
+            }
+            QPushButton {
+                background-color: #006666;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 24px;
+                font-size: 16px;
+            }
+            QPushButton:hover { background-color: #008080; }
+            QPushButton:pressed { background-color: #005757; }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0,0,0,0)
+        layout.setSpacing(0)
+
+        hdr = QLabel(title, objectName="hdr")
+        hdr.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        hdr.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(hdr)
+
+        body = QLabel(message, objectName="body")
+        body.setWordWrap(True)
+        body.setAlignment(Qt.AlignCenter)
+        layout.addWidget(body)
+
+        btn = QPushButton("OK")
+        btn.clicked.connect(self.accept)
+        # center the button
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+
+class ModeSelectDialog(QDialog):
+    def __init__(self, date_str, parent=None):
+        super().__init__(parent)
+        # ── Remove native title bar ──
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setFixedSize(400, 200)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border: 2px solid #006666;
+                border-radius: 8px;
+            }
+            QLabel#header {
+                background-color: #006666;
+                color: white;
+                padding: 10px;
+                font-size: 20px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0,0,0,0)
+        layout.setSpacing(0)
+
+        # ── Header ──
+        header = QLabel(" Send Reminders", objectName="header")
+        header.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        header.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(header)
+
+        # ── Body ──
+        body = QVBoxLayout()
+        body.setContentsMargins(20,20,20,20)
+        body.setSpacing(12)
+
+        lbl = QLabel(f"Mode for {date_str}:")
+        lbl.setFont(QFont("Segoe UI", 18))
+        body.addWidget(lbl)
+
+        self.combo = QComboBox()
+        self.combo.addItems(["desktop", "web", "auto"])
+        self.combo.setFont(QFont("Segoe UI", 16))
+        self.combo.setMinimumHeight(40)
+        body.addWidget(self.combo)
+
+        # ── Buttons ──
+        btns = QHBoxLayout()
+        btns.addStretch()
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setFont(QFont("Segoe UI", 16))
+        btn_cancel.setMinimumHeight(40)
+        btn_cancel.setStyleSheet("""
+            QPushButton {
+                background-color: #888888;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+            }
+            QPushButton:hover { background-color: #AAAAAA; }
+            QPushButton:pressed { background-color: #666666; }
+        """)
+        btn_cancel.clicked.connect(self.reject)
+        btns.addWidget(btn_cancel)
+
+        btn_ok = QPushButton("OK")
+        btn_ok.setFont(QFont("Segoe UI", 16))
+        btn_ok.setMinimumHeight(40)
+        btn_ok.setStyleSheet("""
+            QPushButton {
+                background-color: #006666;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+            }
+            QPushButton:hover { background-color: #008080; }
+            QPushButton:pressed { background-color: #005757; }
+        """)
+        btn_ok.clicked.connect(self.accept)
+        btns.addWidget(btn_ok)
+
+        body.addLayout(btns)
+        layout.addLayout(body)
+
+    def selected_mode(self):
+        return self.combo.currentText()
 
 
 class AppointmentCalendar(QCalendarWidget):
@@ -193,46 +345,52 @@ class CalendarPage(QWidget):
 
     def on_send_reminders(self):
         date_str = self.current_date
-        # collect only checked appointments
+
+        # 1) Collect only checked appointments
         raw_apps = []
         for i in range(self.list_widget.count()):
             itm = self.list_widget.item(i)
             if itm.checkState() == Qt.Checked:
                 raw_apps.append(itm.data(Qt.UserRole))
 
+        # 2) Warn if nothing is selected
         if not raw_apps:
-            QMessageBox.information(
-                self,
-                "No Selection",
-                "Please check at least one appointment to send reminders."
-            )
+            msg = QMessageBox(self)
+            msg.setWindowTitle("No Selection")
+            msg.setText("Please check at least one appointment to send reminders.")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setFont(QFont("Segoe UI", 18))
+            msg.setStyleSheet("""
+                QLabel { min-width: 350px; font-size: 18px; }
+                QPushButton { font-size: 16px; padding: 8px 20px; }
+            """)
+            msg.exec_()
             return
 
-        mode, ok = QInputDialog.getItem(
-            self, "Send Reminders",
-            f"Choose WhatsApp mode for {date_str}:",
-            ["desktop", "web", "auto"],
-            current=0, editable=False
-        )
-        if not ok:
+        # 3) Let user choose WhatsApp mode in a bigger dialog
+        # 3) Let user choose WhatsApp mode via custom dialog
+        dlg = ModeSelectDialog(date_str, parent=self)
+        # exec_() returns QDialog.Accepted or Rejected
+        if dlg.exec_() != QDialog.Accepted:
             return
+        mode = dlg.selected_mode()
 
-        # group & merge selected appointments
+
+        # 4) Group & merge selected appointments by phone
         groups = {}
         for v in raw_apps:
             phone = v['phone']
-            if phone not in groups:
-                groups[phone] = {
-                    'phone':            phone,
-                    'owner_name':       v['owner_name'],
-                    'doctor_name':      v['doctor_name'],
-                    'next_appointment': v['next_appointment'],
-                    'pet_names':        [],
-                    'reasons':          []
-                }
-            if v['pet_name'] not in groups[phone]['pet_names']:
-                groups[phone]['pet_names'].append(v['pet_name'])
-                groups[phone]['reasons'].append(v.get('reason', ''))
+            grp = groups.setdefault(phone, {
+                'phone':            phone,
+                'owner_name':       v['owner_name'],
+                'doctor_name':      v['doctor_name'],
+                'next_appointment': v['next_appointment'],
+                'pet_names':        [],
+                'reasons':          []
+            })
+            if v['pet_name'] not in grp['pet_names']:
+                grp['pet_names'].append(v['pet_name'])
+                grp['reasons'].append(v.get('reason', ''))
 
         merged_apps = []
         for g in groups.values():
@@ -245,9 +403,12 @@ class CalendarPage(QWidget):
                 'reason':           ' و '.join(g['reasons'])
             })
 
+        # 5) Send and confirm
         wp.send_reminders(merged_apps, mode=mode)
-        QMessageBox.information(
-            self,
+
+        dlg = ConfirmDialog(
             "Reminders Sent",
-            f"Sent {len(merged_apps)} reminder(s) for {date_str}."
+            f"Sent {len(merged_apps)} reminder(s) for {date_str}.",
+            parent=self
         )
+        dlg.exec_()
