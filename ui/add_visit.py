@@ -4,12 +4,132 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QListWidget, QListWidgetItem, QTextEdit, QDateEdit, QComboBox,
     QSpinBox, QDoubleSpinBox, QTableWidget, QMessageBox,
-    QToolButton, QFrame, QSizePolicy, QGraphicsDropShadowEffect, QStackedLayout,QHeaderView
+    QToolButton, QFrame, QSizePolicy, QGraphicsDropShadowEffect, QStackedLayout,QHeaderView,QDialog
 )
 from PyQt5.QtGui import QFont, QPainter, QLinearGradient, QColor
 from PyQt5.QtCore import Qt, QDate
 
 import db_manager
+
+class ConfirmDialog(QDialog):
+    def __init__(self, title: str, message: str, parent=None):
+        super().__init__(parent)
+        # remove native title bar
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setFixedSize(400, 160)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border: 2px solid #006666;
+                border-radius: 8px;
+            }
+            QLabel#hdr {
+                background-color: #006666;
+                color: white;
+                padding: 10px;
+                font-size: 20px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+            QLabel#body {
+                font-size: 18px;
+                padding: 20px;
+            }
+            QPushButton {
+                background-color: #00CED1;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #008B8B;
+            }
+        """)
+        # Header
+        hdr = QLabel(title, self)
+        hdr.setObjectName("hdr")
+        hdr.setFont(QFont("Segoe UI", 20))
+        # Body
+        body = QLabel(message, self)
+        body.setObjectName("body")
+        body.setWordWrap(True)
+        # OK button
+        btn = QPushButton("OK", self)
+        btn.clicked.connect(self.accept)
+        # Layouts
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(hdr)
+        layout.addWidget(body)
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+class YesNoDialog(QDialog):
+    def __init__(self, title: str, message: str, parent=None):
+        super().__init__(parent)
+        # Remove native title bar and fix size
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setFixedSize(400, 180)
+        # Reuse the same styling as ConfirmDialog
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border: 2px solid #006666;
+                border-radius: 8px;
+            }
+            QLabel#hdr {
+                background-color: #006666;
+                color: white;
+                padding: 10px;
+                font-size: 20px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+            QLabel#body {
+                font-size: 18px;
+                padding: 20px;
+            }
+            QPushButton {
+                background-color: #00CED1;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #008B8B;
+            }
+        """)
+        # Header
+        hdr = QLabel(title, self)
+        hdr.setObjectName("hdr")
+        hdr.setFont(QFont("Segoe UI", 20))
+        # Body
+        body = QLabel(message, self)
+        body.setObjectName("body")
+        body.setWordWrap(True)
+        # Buttons
+        btn_yes = QPushButton("Yes", self)
+        btn_no  = QPushButton("No",  self)
+        btn_yes.clicked.connect(self.accept)
+        btn_no.clicked.connect(self.reject)
+        # Layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(hdr)
+        layout.addWidget(body)
+        hb = QHBoxLayout()
+        hb.addStretch()
+        hb.addWidget(btn_no)
+        hb.addWidget(btn_yes)
+        hb.addStretch()
+        layout.addLayout(hb)
 
 class AddVisitPage(QWidget):
     def __init__(self, on_back, on_show_history):
@@ -30,6 +150,8 @@ class AddVisitPage(QWidget):
         grad.setColorAt(1, QColor("#006666"))
         painter.fillRect(self.rect(), grad)
         super().paintEvent(event)
+
+
 
     def _build_ui(self):
         # base stylesheet: background + scrollbars + list/table borders
@@ -318,8 +440,11 @@ class AddVisitPage(QWidget):
 
     def _save_visit_and_next(self):
         if not (self.selected_owner and self.selected_pet and self.dr_name.text().strip()):
-            QMessageBox.warning(self, "Missing Data",
-                                "Select owner, pet, and enter doctor name first.")
+            ConfirmDialog(
+                "Missing Data",
+                "Select owner, pet, and enter doctor name first.",
+                parent=self
+            ).exec_()
             return
         self.visit_data = {
             'pet_id':           self.selected_pet['id'],
@@ -336,18 +461,14 @@ class AddVisitPage(QWidget):
         if self.pres_table.rowCount() == 0:
             return self._goto(1)
 
-        # otherwise ask first
-        resp = QMessageBox.question(
-            self,
+        if YesNoDialog(
             "Unsaved Medicines",
             "You have added one or more medicines but haven’t saved yet.\n"
-            "If you go back now, these will be lost.\n\n"
-            "Continue?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        if resp == QMessageBox.Yes:
+            "If you go back now, these will be lost.\n\nContinue?",
+            parent=self
+        ).exec_() == QDialog.Accepted:
             self._goto(1)
+
 
     def _show_history_detail(self, item):
         v = item.data
@@ -510,7 +631,11 @@ class AddVisitPage(QWidget):
         try:
             self.visit_id = db_manager.add_visit(self.visit_data)
         except Exception as e:
-            QMessageBox.critical(self, "Error Saving Visit", str(e))
+            ConfirmDialog(
+                "Error Saving Visit",
+                str(e),
+                parent=self
+            ).exec_()
             return
 
         # 1a) Save all Future Appointments
@@ -524,11 +649,11 @@ class AddVisitPage(QWidget):
 
         # 2) If no prescriptions were added, we’re done
         if row_count == 0:
-            QMessageBox.information(
-                self,
+            ConfirmDialog(
                 "Visit Saved",
-                "Visit has been saved (no medications added)."
-            )
+                "Visit has been saved (no medications added).",
+                parent=self
+            ).exec_()
             self.reset_visit_forms()
             return
 
@@ -542,6 +667,9 @@ class AddVisitPage(QWidget):
             qty   = qty_widget.value()
             price = price_widget.value()
 
+            if is_inv and qty == 0:
+                continue
+
             if is_inv:
                 batch_combo = self.pres_table.cellWidget(row, 2)
                 batch       = batch_combo.currentData() or {}
@@ -549,12 +677,11 @@ class AddVisitPage(QWidget):
                 available   = batch.get('quantity', 0)
 
                 if qty > available:
-                    QMessageBox.warning(
-                        self,
+                    ConfirmDialog(
                         "Insufficient Stock",
-                        f"Requested {qty}, but only {available} available for batch "
-                        f"{batch.get('expiration_date','?')}."
-                    )
+                        f"Requested {qty}, but only {available} available for batch {batch.get('expiration_date','?')}.",
+                        parent=self
+                    ).exec_()
                     return
 
                 med_name = None
@@ -574,7 +701,11 @@ class AddVisitPage(QWidget):
                     'unit_price':   price
                 })
             except Exception as e:
-                QMessageBox.critical(self, "Error Saving Prescription", str(e))
+                ConfirmDialog(
+                    "Error Saving Prescription",
+                    str(e),
+                    parent=self
+                ).exec_()
                 return
 
             # deduct stock if from inventory
@@ -583,15 +714,19 @@ class AddVisitPage(QWidget):
                 try:
                     db_manager.update_inventory_quantity(inv_id, new_qty)
                 except Exception as e:
-                    QMessageBox.critical(self, "Error Updating Stock", str(e))
+                    ConfirmDialog(
+                        "Error Updating Stock",
+                        str(e),
+                        parent=self
+                    ).exec_()
                     return
 
         # 4) All done!
-        QMessageBox.information(
-            self,
+        ConfirmDialog(
             "Done",
-            "Visit and all prescriptions have been saved."
-        )
+            "Visit and all prescriptions have been saved.",
+            parent=self
+        ).exec_()
         self.reset_visit_forms()
 
     def set_context(self, owner: dict, pet: dict):
