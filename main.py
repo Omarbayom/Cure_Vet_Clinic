@@ -24,8 +24,7 @@ from ui.calendar_page     import CalendarPage
 from ui.report            import ReportPage
 from notification_manager import NotificationManager,NotificationPage
 
-SECRET_KEY   = b"your-super-secret-key-goes-here"
-FERNET_KEY   = b"g1m1pQ6mMXhJd7xYBzqfpj_BGwN_LvoaG_0biT9m5mM="
+
 LIC_PATH     = Path(__file__).parent / ".license"
 LASTRUN_PATH = Path(__file__).parent / ".lastrun"
 
