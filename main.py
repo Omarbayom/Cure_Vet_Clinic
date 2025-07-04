@@ -1,4 +1,12 @@
+import os
 import sys
+import hmac
+import hashlib
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from cryptography.fernet import Fernet, InvalidToken
+from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from PyQt5.QtCore import Qt
 from PyQt5.QtCore import QEvent, Qt, QTimer
@@ -16,7 +24,10 @@ from ui.calendar_page     import CalendarPage
 from ui.report            import ReportPage
 from notification_manager import NotificationManager,NotificationPage
 
-
+SECRET_KEY   = b"your-super-secret-key-goes-here"
+FERNET_KEY   = b"g1m1pQ6mMXhJd7xYBzqfpj_BGwN_LvoaG_0biT9m5mM="
+LIC_PATH     = Path(__file__).parent / ".license"
+LASTRUN_PATH = Path(__file__).parent / ".lastrun"
 
 class MainApp(QMainWindow):
     def __init__(self, notif_manager):
@@ -208,18 +219,83 @@ class MainApp(QMainWindow):
     def show_notifications(self):
         self.stack.setCurrentWidget(self.notification_page)
 
+def load_license(path: Path):
+    """
+    Reads an encrypted Fernet token from .license, decrypts it,
+    splits into expiry.ISIGNATURE, and verifies the HMAC.
+    Returns (expiry_datetime, valid_signature: bool).
+    """
+    try:
+        token   = path.read_bytes()
+        data    = Fernet(FERNET_KEY).decrypt(token)
+        raw     = data.decode("utf-8")
+        expiry_str, sig = raw.rsplit(".", 1)
+    except (InvalidToken, ValueError, IOError):
+        return None, False
+
+    expected = hmac.new(SECRET_KEY, expiry_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        return None, False
+
+    try:
+        exp_dt = datetime.fromisoformat(expiry_str)
+    except ValueError:
+        return None, False
+
+    return exp_dt, True
+
+def check_clock_tamper() -> bool:
+    """
+    Detects only large backward clock shifts (>2 hours).
+    Writes the current local time to .lastrun on success.
+    """
+    now = datetime.now()
+    if LASTRUN_PATH.exists():
+        try:
+            prev = datetime.fromisoformat(LASTRUN_PATH.read_text().strip())
+        except Exception:
+            return False
+        if prev - now > timedelta(hours=2):  # moved back more than 2h
+            return False
+
+    LASTRUN_PATH.write_text(now.isoformat())
+    return True
+
+def is_license_valid() -> bool:
+    # missing file → expired
+    if not LIC_PATH.exists():
+        return False
+
+    # 1) decrypt + HMAC check
+    exp_dt, sig_ok = load_license(LIC_PATH)
+    if not sig_ok or exp_dt is None:
+        return False
+
+    # 2) offline clock tamper check
+    if not check_clock_tamper():
+        return False
+
+    # 3) expiry date check
+    if datetime.now() > exp_dt:
+        return False
+
+    return True
 
     
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-        # 1) start notifications
     notif_manager = NotificationManager(parent=None)
-    main_win = MainApp(notif_manager)
 
-    # Splash
-    splash = SplashScreen(duration_ms=1500)
-    splash.finished.connect(main_win.showFullScreen)
-    splash.finished.connect(splash.close)
-    splash.show()
+    if not is_license_valid():
+        # expired/tampered → only show welcome screen
+        window = WelcomeWidget(on_start=lambda: None)
+        window.showFullScreen()
+    else:
+        # valid → full app
+        main_win = MainApp(notif_manager)
+        splash   = SplashScreen(duration_ms=1500)
+        splash.finished.connect(main_win.showFullScreen)
+        splash.finished.connect(splash.close)
+        splash.show()
 
     sys.exit(app.exec_())
